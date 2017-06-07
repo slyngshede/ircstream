@@ -14,7 +14,7 @@
 # - Test this in the real world
 # - Remove dependencies for simplicity
 #   + on irc.client, irc.events (only using a couple of functions)
-#   + on jaraco.logging and jaraco.stream?
+#   + on jaraco.stream?
 
 from __future__ import print_function, absolute_import
 
@@ -28,7 +28,6 @@ import threading
 
 import six
 from six.moves import socketserver
-import jaraco.logging
 from jaraco.stream import buffer
 
 import irc.client
@@ -467,14 +466,16 @@ def get_args():
         type=int, help="Port on which to listen")
     parser.add_argument("-e", "--echo-port", dest="echo_port", default=9390,
         type=int, help="Port on which to listen")
-    jaraco.logging.add_arguments(parser)
+    parser.add_argument('-l', '--log-level', dest="log_level", default='INFO',
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        help="Set log level (DEBUG, INFO, WARNING, ERROR)")
 
     return parser.parse_args()
 
 
 def main():
     options = get_args()
-    jaraco.logging.setup(options)
+    logging.basicConfig(level=getattr(logging, options.log_level))
 
     log.info("Starting IRCStream")
 
