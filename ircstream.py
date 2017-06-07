@@ -14,7 +14,6 @@
 # - Test this in the real world
 # - Remove dependencies for simplicity
 #   + on irc.client, irc.events (only using a couple of functions)
-#   + on jaraco.stream?
 
 from __future__ import print_function, absolute_import
 
@@ -28,7 +27,6 @@ import threading
 
 import six
 from six.moves import socketserver
-from jaraco.stream import buffer
 
 import irc.client
 from irc import events
@@ -115,7 +113,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def handle(self):
         log.info('Client connected: %s', self.client_ident())
-        self.buffer = buffer.LineBuffer()
+        self.buffer = b''
 
         try:
             while True:
@@ -151,8 +149,11 @@ class IRCClient(socketserver.BaseRequestHandler):
         if not data:
             raise self.Disconnect()
 
-        self.buffer.feed(data)
-        for line in self.buffer:
+        self.buffer += data
+        lines = re.split(b'\r?\n', self.buffer)
+        self.buffer = lines.pop()
+
+        for line in lines:
             line = line.decode('utf-8')
             self._handle_line(line)
 
