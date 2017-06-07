@@ -324,6 +324,8 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.send_queue.append(response)
             channel.clients.remove(self)
 
+        raise self.Disconnect()
+
     def client_ident(self):
         """
         Return the client identifier as included in many command replies.
