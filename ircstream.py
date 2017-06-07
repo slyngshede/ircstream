@@ -13,7 +13,8 @@
 # TODO:
 # - Test this in the real world
 # - Remove dependencies for simplicity
-#   + on irc.client, irc.events (only using a couple of functions)
+#   + on irc.events (only using a couple of functions)
+#   + on six
 
 from __future__ import print_function, absolute_import
 
@@ -28,7 +29,6 @@ import threading
 import six
 from six.moves import socketserver
 
-import irc.client
 from irc import events
 
 BOTNAME = 'rc-pmtpa'
@@ -349,8 +349,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Return the client identifier as included in many command replies.
         """
-        return irc.client.NickMask.from_params(self.nick, self.user,
-            self.server.servername)
+        return six.text_type('{}!{}@{}'.format(
+            self.nick, self.user, self.server.servername))
 
     def finish(self):
         """
@@ -411,8 +411,7 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         return self.channels.setdefault(name, IRCChannel(name))
 
     def broadcast(self, target, msg):
-        botid = irc.client.NickMask.from_params(BOTNAME, BOTNAME,
-                self.servername)
+        botid = BOTNAME + "!" + BOTNAME + "@" + self.servername
         message = ':%s PRIVMSG %s %s' % (botid, target, msg)
 
         channel = self.get_channel(target)
