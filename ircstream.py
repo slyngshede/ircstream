@@ -82,7 +82,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def __init__(self, request, client_address, server):
         self.user = None
-        self.host = client_address  # Client's hostname / ip.
+        self.host = "{}:{}".format(*client_address)
         self.realname = None        # Client's real name
         self.nick = None            # Client's currently registered nickname
         self.send_queue = []        # Messages to send to client (strings)
@@ -91,7 +91,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         super().__init__(request, client_address, server)
 
     def handle(self):
-        log.info('Client connected: %s', self.client_ident())
+        log.info('Client connected: %s', self.host)
         self.buffer = b''
 
         try:
@@ -138,7 +138,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def _handle_line(self, line):
         try:
-            log.debug('from %s: %s' % (self.client_ident(), line))
+            log.debug('from %s: %s' % (self.internal_ident(), line))
             command, sep, params = line.partition(' ')
             handler = getattr(self, 'handle_%s' % command.lower(), None)
             if not handler:
@@ -161,7 +161,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self._send(response)
 
     def _send(self, msg):
-        log.debug('to %s: %s', self.client_ident(), msg)
+        log.debug('to %s: %s', self.internal_ident(), msg)
         try:
             self.request.send(msg.encode('utf-8') + b'\r\n')
         except socket.error as e:
@@ -333,13 +333,19 @@ class IRCClient(socketserver.BaseRequestHandler):
         return '{}!{}@{}'.format(
             self.nick, self.user, self.server.servername)
 
+    def internal_ident(self):
+        """
+        Return the internal (non-wire-protocol) client identifier
+        """
+        return '{}!{}/{}'.format(self.nick, self.user, self.host)
+
     def finish(self):
         """
         The client conection is finished. Do some cleanup to ensure that the
         client doesn't linger around in any channel or the client list, in case
         the client didn't properly close the connection with PART and QUIT.
         """
-        log.info('Client disconnected: %s', self.client_ident())
+        log.info('Client disconnected: %s', self.internal_ident())
         response = ':%s QUIT :EOF from client' % self.client_ident()
         for channel in self.channels.values():
             if self in channel.clients:
@@ -349,7 +355,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 channel.clients.remove(self)
 
         self.server.clients.remove(self)
-        log.info('Connection finished: %s', self.client_ident())
+        log.info('Connection finished: %s', self.internal_ident())
 
     def __repr__(self):
         """
