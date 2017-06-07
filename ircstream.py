@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-# Copyright © 2016 Faidon Liambotis
-# Copyright © 2016 Wikimedia Foundation, Inc.
+# Copyright © 2016-2017 Faidon Liambotis
+# Copyright © 2016-2017 Wikimedia Foundation, Inc.
 #
 # Derived work of https://github.com/jaraco/irc which is
 # Copyright © 1999-2002 Joel Rosdahl
