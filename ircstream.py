@@ -145,7 +145,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 _tmpl = 'No handler for command: %s. Full line: %s'
                 log.info(_tmpl % (command, line))
                 raise IRCError('unknowncommand',
-                    '%s :Unknown command' % command)
+                               '%s :Unknown command' % command)
             response = handler(params)
         except AttributeError as e:
             log.error(str(e))
@@ -195,7 +195,8 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.nick = nick
             self.server.clients.add(self)
             response = ':%s %s %s :%s' % (self.server.servername,
-                events.codes['welcome'], self.nick, SRV_WELCOME)
+                                          events.codes['welcome'],
+                                          self.nick, SRV_WELCOME)
             self.send_queue.append(response)
             response = ':%s 376 %s :End of MOTD command.' % (
                 self.server.servername, self.nick)
@@ -216,8 +217,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         params = params.split(' ', 3)
 
         if len(params) != 4:
-            raise IRCError('needmoreparams',
-                'USER :Not enough parameters')
+            raise IRCError('needmoreparams', 'USER :Not enough parameters')
 
         user, mode, unused, realname = params
         self.user = user
@@ -244,7 +244,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             # Valid channel name?
             if not re.match('^#([a-zA-Z0-9_.])+$', r_channel_name):
                 raise IRCError('nosuchchannel',
-                    '%s :No such channel' % r_channel_name)
+                               '%s :No such channel' % r_channel_name)
 
             # Add user to the channel (create new channel if not exists)
             channel = self.server.get_channel(r_channel_name)
@@ -255,19 +255,19 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             # Send the topic
             response_join = ':%s TOPIC %s :%s' % (channel.topic_by,
-                channel.name, channel.topic)
+                                                  channel.name, channel.topic)
             self.send_queue.append(response_join)
 
             # Send join message to everybody in the channel, including yourself
             # and send user list of the channel back to the user.
             response_join = ':%s JOIN :%s' % (self.client_ident(),
-                r_channel_name)
+                                              r_channel_name)
 
             # Only return ourselves and the bot, not others in the channel
             nicks = (self.nick, BOTNAME)
 
             _vals = (self.server.servername, self.nick, channel.name,
-                ' '.join(nicks))
+                     ' '.join(nicks))
             response_userlist = ':%s 353 %s = %s :%s' % _vals
             self.send_queue.append(response_userlist)
 
@@ -283,13 +283,12 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         target, sep, msg = params.partition(' ')
         if not msg:
-            raise IRCError('needmoreparams',
-                'PRIVMSG :Not enough parameters')
+            raise IRCError('needmoreparams', 'PRIVMSG :Not enough parameters')
 
         if target.startswith('#') or target.startswith('$'):
             # Message to channel. Check if the channel exists.
             raise IRCError('cannotsendtochan',
-                '%s :Cannot send to channel' % target)
+                           '%s :Cannot send to channel' % target)
         else:
             raise IRCError('nosuchnick', 'PRIVMSG :%s' % target)
 
@@ -428,14 +427,14 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-a", "--address", dest="listen_address",
-        default='127.0.0.1', help="IP on which to listen")
+                        default='127.0.0.1', help="IP on which to listen")
     parser.add_argument("-p", "--port", dest="listen_port", default=6667,
-        type=int, help="Port on which to listen")
+                        type=int, help="Port on which to listen")
     parser.add_argument("-e", "--echo-port", dest="echo_port", default=9390,
-        type=int, help="Port on which to listen")
+                        type=int, help="Port on which to listen")
     parser.add_argument('-l', '--log-level', dest="log_level", default='INFO',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        help="Set log level (DEBUG, INFO, WARNING, ERROR)")
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+                        help="Set log level (DEBUG, INFO, WARNING, ERROR)")
 
     return parser.parse_args()
 
