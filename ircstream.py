@@ -52,15 +52,11 @@ class IRCError(Exception):
     server/client error.
     """
     def __init__(self, code, value):
-        self.code = code
+        self.code = events.codes[code]
         self.value = value
 
     def __str__(self):
         return repr(self.value)
-
-    @classmethod
-    def from_name(cls, name, value):
-        return cls(events.codes[name], value)
 
 
 class IRCChannel(object):
@@ -148,7 +144,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             if not handler:
                 _tmpl = 'No handler for command: %s. Full line: %s'
                 log.info(_tmpl % (command, line))
-                raise IRCError.from_name('unknowncommand',
+                raise IRCError('unknowncommand',
                     '%s :Unknown command' % command)
             response = handler(params)
         except AttributeError as e:
@@ -191,7 +187,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         # Valid nickname?
         if re.search('[^a-zA-Z0-9\-\[\]\'`^{}_]', nick):
-            raise IRCError.from_name('erroneusnickname', ':%s' % nick)
+            raise IRCError('erroneusnickname', ':%s' % nick)
 
         if not self.nick:
             # New connection and nick is available; register and send welcome
@@ -220,7 +216,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         params = params.split(' ', 3)
 
         if len(params) != 4:
-            raise IRCError.from_name('needmoreparams',
+            raise IRCError('needmoreparams',
                 'USER :Not enough parameters')
 
         user, mode, unused, realname = params
@@ -247,7 +243,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             # Valid channel name?
             if not re.match('^#([a-zA-Z0-9_.])+$', r_channel_name):
-                raise IRCError.from_name('nosuchchannel',
+                raise IRCError('nosuchchannel',
                     '%s :No such channel' % r_channel_name)
 
             # Add user to the channel (create new channel if not exists)
@@ -287,15 +283,15 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         target, sep, msg = params.partition(' ')
         if not msg:
-            raise IRCError.from_name('needmoreparams',
+            raise IRCError('needmoreparams',
                 'PRIVMSG :Not enough parameters')
 
         if target.startswith('#') or target.startswith('$'):
             # Message to channel. Check if the channel exists.
-            raise IRCError.from_name('cannotsendtochan',
+            raise IRCError('cannotsendtochan',
                 '%s :Cannot send to channel' % target)
         else:
-            raise IRCError.from_name('nosuchnick', 'PRIVMSG :%s' % target)
+            raise IRCError('nosuchnick', 'PRIVMSG :%s' % target)
 
     def handle_part(self, params):
         """
