@@ -14,9 +14,6 @@
 # - Test this in the real world
 # - Remove dependencies for simplicity
 #   + on irc.events (only using a couple of functions)
-#   + on six
-
-from __future__ import print_function, absolute_import
 
 import argparse
 import errno
@@ -25,9 +22,7 @@ import socket
 import select
 import re
 import threading
-
-import six
-from six.moves import socketserver
+import socketserver
 
 from irc import events
 
@@ -103,12 +98,6 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.send_queue = []        # Messages to send to client (strings)
         self.channels = {}          # Channels the client is in
 
-        # On Python 2, use old, clunky syntax to call parent init
-        if six.PY2:
-            socketserver.BaseRequestHandler.__init__(self, request,
-                client_address, server)
-            return
-
         super().__init__(request, client_address, server)
 
     def handle(self):
@@ -169,7 +158,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                     '%s :Unknown command' % command)
             response = handler(params)
         except AttributeError as e:
-            log.error(six.text_type(e))
+            log.error(str(e))
             raise
         except IRCError as e:
             response = ':%s %s %s' % (self.server.servername, e.code, e.value)
@@ -349,8 +338,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Return the client identifier as included in many command replies.
         """
-        return six.text_type('{}!{}@{}'.format(
-            self.nick, self.user, self.server.servername))
+        return '{}!{}@{}'.format(
+            self.nick, self.user, self.server.servername)
 
     def finish(self):
         """
@@ -398,10 +387,6 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         self.channels = {}
         self.clients = set()
 
-        if six.PY2:
-            socketserver.TCPServer.__init__(self, *args, **kwargs)
-            return
-
         super().__init__(*args, **kwargs)
 
     def get_channel(self, name):
@@ -420,15 +405,6 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 
 class EchoHandler(socketserver.BaseRequestHandler):
-    def __init__(self, request, client_address, server):
-        # On Python 2, use old, clunky syntax to call parent init
-        if six.PY2:
-            socketserver.BaseRequestHandler.__init__(self, request,
-                client_address, server)
-            return
-
-        super().__init__(request, client_address, server)
-
     def handle(self):
         data = self.request[0]
         data = data.decode('utf-8')
@@ -448,13 +424,6 @@ class EchoHandler(socketserver.BaseRequestHandler):
 class EchoServer(socketserver.UDPServer):
     daemon_threads = True
     allow_reuse_address = True
-
-    def __init__(self, *args, **kwargs):
-        if six.PY2:
-            socketserver.UDPServer.__init__(self, *args, **kwargs)
-            return
-
-        super().__init__(*args, **kwargs)
 
 
 def get_args():
