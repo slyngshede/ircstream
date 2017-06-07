@@ -9,11 +9,6 @@
 # Copyright © 2009 Ferry Boender
 #
 # License: MIT
-#
-# TODO:
-# - Test this in the real world
-# - Remove dependencies for simplicity
-#   + on irc.events (only using a couple of functions)
 
 import argparse
 import errno
@@ -23,8 +18,7 @@ import select
 import re
 import threading
 import socketserver
-
-from irc import events
+import events
 
 BOTNAME = 'rc-pmtpa'
 SRV_WELCOME = """
