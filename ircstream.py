@@ -458,6 +458,8 @@ def main():
         echo_thread.start()
 
         input()
+    except KeyboardInterrupt:
+        return
     except socket.error as e:
         log.error(repr(e))
         raise SystemExit(-2)
