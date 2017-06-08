@@ -232,13 +232,12 @@ class IRCClient(socketserver.BaseRequestHandler):
                 raise IRCError('unknowncommand',
                                '%s :Unknown command' % msg.command)
             handler(msg.params)
-        except AttributeError as e:
-            log.error(str(e))
-            raise
         except IRCError as e:
             response = ':%s %s %s' % (self.server.servername, e.code, e.value)
+            self._send(response)
         except Exception as e:
             response = ':%s ERROR %r' % (self.server.servername, e)
+            self._send(response)
             log.error(str(e))
             raise
 
