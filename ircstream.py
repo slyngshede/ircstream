@@ -138,12 +138,12 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def _handle_line(self, line):
         try:
-            log.debug('from %s: %s' % (self.internal_ident(), line))
+            log.debug('<- %s: %s' % (self.internal_ident(), line))
             command, sep, params = line.partition(' ')
             handler = getattr(self, 'handle_%s' % command.lower(), None)
             if not handler:
-                _tmpl = 'No handler for command: %s. Full line: %s'
-                log.info(_tmpl % (command, line))
+                log.info('No handler for command "%s" from client %s',
+                         command, self.internal_ident())
                 raise IRCError('unknowncommand',
                                '%s :Unknown command' % command)
             response = handler(params)
@@ -154,14 +154,14 @@ class IRCClient(socketserver.BaseRequestHandler):
             response = ':%s %s %s' % (self.server.servername, e.code, e.value)
         except Exception as e:
             response = ':%s ERROR %r' % (self.server.servername, e)
-            log.error(response)
+            log.error(str(e))
             raise
 
         if response:
             self._send(response)
 
     def _send(self, msg):
-        log.debug('to %s: %s', self.internal_ident(), msg)
+        log.debug('-> %s: %s', self.internal_ident(), msg)
         try:
             self.request.send(msg.encode('utf-8') + b'\r\n')
         except socket.error as e:
@@ -198,8 +198,9 @@ class IRCClient(socketserver.BaseRequestHandler):
                                           events.codes['welcome'],
                                           self.nick, SRV_WELCOME)
             self.send_queue.append(response)
-            response = ':%s 376 %s :End of MOTD command.' % (
-                self.server.servername, self.nick)
+
+            response = ':%s %s %s :End of MOTD command.' % (
+                self.server.servername, events.codes['endofmotd'], self.nick)
             self.send_queue.append(response)
             return
         else:
