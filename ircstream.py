@@ -14,12 +14,13 @@
 # - fix user registration
 #   + needs 002, 003, 004, 005
 #   + possibly needs 251, 252, 254, 255, 265, 266, 372
+# - add len(params) checks in all handle_*
 # - audit all handle_* for conformance to RFC
 #   + https://www.ietf.org/rfc/rfc1459.txt
 #   + http://ircv3.net/irc/
 #   + https://modern.ircdocs.horse/
+# - handle WHO
 # - use IRCMessage from IRCError
-# - add len(params) checks in all handle_*
 # - cleanup IRCMessage
 # - add PINGs
 # - add statistics/introspection
@@ -367,7 +368,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         No-op in our case, as we only allow the stream to message users.
         """
-        target, sep, msg = params.partition(' ')
+        target, msg = params[:2]
         if not msg:
             raise IRCError('needmoreparams', 'PRIVMSG :Not enough parameters')
 
