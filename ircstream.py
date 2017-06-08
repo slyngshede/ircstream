@@ -11,9 +11,22 @@
 # License: MIT
 
 # TODO:
+# - fix user registration
+#   + needs 002, 003, 004, 005
+#   + possibly needs 251, 252, 254, 255, 265, 266, 372
+# - audit all handle_* for conformance to RFC
+#   + https://www.ietf.org/rfc/rfc1459.txt
+#   + http://ircv3.net/irc/
+#   + https://modern.ircdocs.horse/
 # - use IRCMessage from IRCError
 # - add len(params) checks in all handle_*
 # - cleanup IRCMessage
+# - add PINGs
+# - add statistics/introspection
+# - split into multiple files
+# - tests! https://a3nm.net/git/irctk/about
+# - make botname/motd configurable
+# - SSL (separate port? STARTTLS? STS?)
 
 import argparse
 import errno
