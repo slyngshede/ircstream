@@ -224,7 +224,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                          msg.command, self.internal_ident)
                 raise IRCError('unknowncommand',
                                '%s :Unknown command' % msg.command)
-            response = handler(msg.params)
+            handler(msg.params)
         except AttributeError as e:
             log.error(str(e))
             raise
@@ -234,9 +234,6 @@ class IRCClient(socketserver.BaseRequestHandler):
             response = ':%s ERROR %r' % (self.server.servername, e)
             log.error(str(e))
             raise
-
-        if response:
-            self._send(response)
 
     def _send(self, msg):
         log.debug('-> %s: %s', self.internal_ident, msg)
@@ -274,14 +271,10 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.server.clients.add(self)
             self.server_msg(events.codes['welcome'], [self.nick, SRV_WELCOME])
             self.server_msg(events.codes['endofmotd'], [self.nick])
-            return
         else:
             # Nick is available. Change the nick.
             self.nick = nick
             self.client_msg('NICK', nick)
-
-            # Send a notification of the nick change to the client itself
-            return message
 
     def handle_user(self, params):
         """
@@ -294,14 +287,13 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.user = user
         self.mode = mode
         self.realname = realname
-        return ''
 
     def handle_ping(self, params):
         """
         Handle client PING requests to keep the connection alive.
         """
-        response = ':{self.server.servername} PONG :{self.server.servername}'
-        return response.format(**locals())
+        origin = params[0]
+        self.server_msg('PONG', [origin])
 
     def handle_join(self, params):
         """
