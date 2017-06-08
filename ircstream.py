@@ -161,7 +161,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         super().__init__(request, client_address, server)
 
     def client_msg(self, command, params):
-        msg = IRCMessage(command, params, self.client_ident())
+        msg = IRCMessage(command, params, self.client_ident)
         self.send_queue.append(str(msg))
 
     def server_msg(self, command, params):
@@ -216,12 +216,12 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def _handle_line(self, line):
         try:
-            log.debug('<- %s: %s' % (self.internal_ident(), line))
+            log.debug('<- %s: %s' % (self.internal_ident, line))
             msg = IRCMessage.from_message(line)
             handler = getattr(self, 'handle_%s' % msg.command.lower(), None)
             if not handler:
                 log.info('No handler for command "%s" from client %s',
-                         msg.command, self.internal_ident())
+                         msg.command, self.internal_ident)
                 raise IRCError('unknowncommand',
                                '%s :Unknown command' % msg.command)
             response = handler(msg.params)
@@ -239,7 +239,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self._send(response)
 
     def _send(self, msg):
-        log.debug('-> %s: %s', self.internal_ident(), msg)
+        log.debug('-> %s: %s', self.internal_ident, msg)
         try:
             self.request.send(msg.encode('utf-8') + b'\r\n')
         except socket.error as e:
@@ -278,7 +278,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         else:
             # Nick is available. Change the nick.
             self.nick = nick
-            message = ':%s NICK :%s' % (self.client_ident(), nick)
+            self.client_msg('NICK', nick)
 
             # Send a notification of the nick change to the client itself
             return message
@@ -396,6 +396,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         raise self.Disconnect()
 
+    @property
     def client_ident(self):
         """
         Return the client identifier as included in many command replies.
@@ -403,6 +404,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         return '{}!{}@{}'.format(
             self.nick, self.user, self.server.servername)
 
+    @property
     def internal_ident(self):
         """
         Return the internal (non-wire-protocol) client identifier
@@ -415,14 +417,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         client doesn't linger around in any channel or the client list, in case
         the client didn't properly close the connection with PART and QUIT.
         """
-        log.info('Client disconnected: %s', self.internal_ident())
+        log.info('Client disconnected: %s', self.internal_ident)
         for channel in self.channels.values():
             if self in channel.clients:
                 self.client_msg('QUIT', ['EOF from client'])
                 channel.clients.remove(self)
 
         self.server.clients.remove(self)
-        log.info('Connection finished: %s', self.internal_ident())
+        log.info('Connection finished: %s', self.internal_ident)
 
     def __repr__(self):
         """
