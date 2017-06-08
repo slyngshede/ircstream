@@ -319,7 +319,6 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             # Add user to the channel (create new channel if not exists)
             channel = self.server.get_channel(r_channel_name)
-            channel.topic = 'Welcome to the %s stream' % r_channel_name
             channel.clients.add(self)
 
             # Add channel to user's channel list
@@ -328,30 +327,41 @@ class IRCClient(socketserver.BaseRequestHandler):
             # Send join message yourself
             self.client_msg('JOIN', [r_channel_name])
 
-            # Send the topic
+            self.handle_topic([r_channel_name])
+            self.handle_names([r_channel_name])
+
+    def handle_topic(self, params):
+        channel = params[0]
+
+        if len(params) > 1:
+            raise IRCError('chanoprivsneeded',
+                           "%s :You're not channel operator" % channel)
+        else:
             self.server_msg(events.codes['currenttopic'], [
                 self.nick,
-                channel.name,
-                channel.topic,
-                ])
-            # topicinfo?
-
-            # Send user list of the channel back to the user.
-            # Only return ourselves and the bot, not others in the channel
-            nicks = (self.nick, BOTNAME)
-
-            self.server_msg(events.codes['namreply'], [
-                self.nick,
-                '=',
-                channel.name,
-                ' '.join(nicks),
+                channel,
+                'Welcome to the %s stream' % channel,
                 ])
 
-            self.server_msg(events.codes['endofnames'], [
-                self.nick,
-                channel.name,
-                'End of /NAMES list',
-                ])
+    def handle_names(self, params):
+        channel = params[0]
+
+        # Send user list of the channel back to the user.
+        # Only return ourselves and the bot, not others in the channel
+        nicks = (self.nick, BOTNAME)
+
+        self.server_msg(events.codes['namreply'], [
+            self.nick,
+            '=',
+            channel,
+            ' '.join(nicks),
+            ])
+
+        self.server_msg(events.codes['endofnames'], [
+            self.nick,
+            channel,
+            'End of /NAMES list',
+            ])
 
     def handle_privmsg(self, params):
         """
