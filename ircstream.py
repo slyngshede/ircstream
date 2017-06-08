@@ -97,19 +97,7 @@ class IRCMessage(object):
 
         return cls(command, params, source)
 
-    def args_to_message(self):
-        base = []
-        for arg in self.params:
-            casted = str(arg)
-            if casted and ' ' not in casted and casted[0] != ':':
-                base.append(casted)
-            else:
-                base.append(':' + casted)
-                break
-
-        return ' '.join(base)
-
-    def to_message(self):
+    def __str__(self):
         components = []
 
         if self.source:
@@ -118,15 +106,21 @@ class IRCMessage(object):
         components.append(self.command)
 
         if self.params:
-            components.append(self.args_to_message())
+            base = []
+            for arg in self.params:
+                casted = str(arg)
+                if casted and ' ' not in casted and casted[0] != ':':
+                    base.append(casted)
+                else:
+                    base.append(':' + casted)
+                    break
+
+            components.append(' '.join(base))
 
         return ' '.join(components)
 
-    def __str__(self):
-        return self.to_message()
-
     def __repr__(self):
-        return '<IRCMessage: "{0}">'.format(self.to_message())
+        return '<IRCMessage: "{0}">'.format(self.command)
 
 
 class IRCError(Exception):
