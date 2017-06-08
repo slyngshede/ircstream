@@ -10,6 +10,11 @@
 #
 # License: MIT
 
+# TODO:
+# - use IRCMessage from IRCError
+# - add len(params) checks in all handle_*
+# - cleanup IRCMessage
+
 import argparse
 import errno
 import logging
@@ -44,6 +49,71 @@ SRV_WELCOME = """
 """
 
 log = logging.getLogger("ircstream")
+
+
+class IRCMessage(object):
+    def __init__(self, command, params=[], source=None):
+        self.command = command
+        self.params = params
+        self.source = source
+
+    @classmethod
+    def from_message(cls, message):
+        s = message.split(' ')
+
+        source = None
+        if s[0].startswith(':'):
+            source = s[0][1:]
+            s = s[1:]
+
+        command = s[0].upper()
+        original_params = s[1:]
+        params = []
+
+        while len(original_params):
+            # skip multiple spaces in middle of message, as per 1459
+            if original_params[0] == '' and len(original_params) > 1:
+                original_params.pop(0)
+                continue
+            elif original_params[0].startswith(':'):
+                arg = ' '.join(original_params)[1:]
+                params.append(arg)
+                break
+            else:
+                params.append(original_params.pop(0))
+
+        return cls(command, params, source)
+
+    def args_to_message(self):
+        base = []
+        for arg in self.params:
+            casted = str(arg)
+            if casted and ' ' not in casted and casted[0] != ':':
+                base.append(casted)
+            else:
+                base.append(':' + casted)
+                break
+
+        return ' '.join(base)
+
+    def to_message(self):
+        components = []
+
+        if self.source:
+            components.append(':' + self.source)
+
+        components.append(self.command)
+
+        if self.params:
+            components.append(self.args_to_message())
+
+        return ' '.join(components)
+
+    def __str__(self):
+        return self.to_message()
+
+    def __repr__(self):
+        return '<IRCMessage: "{0}">'.format(self.to_message())
 
 
 class IRCError(Exception):
@@ -81,14 +151,22 @@ class IRCClient(socketserver.BaseRequestHandler):
         pass
 
     def __init__(self, request, client_address, server):
-        self.user = None
         self.host = "{}:{}".format(*client_address)
+        self.user = None
         self.realname = None        # Client's real name
         self.nick = None            # Client's currently registered nickname
         self.send_queue = []        # Messages to send to client (strings)
         self.channels = {}          # Channels the client is in
 
         super().__init__(request, client_address, server)
+
+    def client_msg(self, command, params):
+        msg = IRCMessage(command, params, self.client_ident())
+        self.send_queue.append(str(msg))
+
+    def server_msg(self, command, params):
+        msg = IRCMessage(command, params, self.server.servername)
+        self.send_queue.append(str(msg))
 
     def handle(self):
         log.info('Client connected: %s', self.host)
@@ -139,14 +217,14 @@ class IRCClient(socketserver.BaseRequestHandler):
     def _handle_line(self, line):
         try:
             log.debug('<- %s: %s' % (self.internal_ident(), line))
-            command, sep, params = line.partition(' ')
-            handler = getattr(self, 'handle_%s' % command.lower(), None)
+            msg = IRCMessage.from_message(line)
+            handler = getattr(self, 'handle_%s' % msg.command.lower(), None)
             if not handler:
                 log.info('No handler for command "%s" from client %s',
-                         command, self.internal_ident())
+                         msg.command, self.internal_ident())
                 raise IRCError('unknowncommand',
-                               '%s :Unknown command' % command)
-            response = handler(params)
+                               '%s :Unknown command' % msg.command)
+            response = handler(msg.params)
         except AttributeError as e:
             log.error(str(e))
             raise
@@ -183,7 +261,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Handle the initial setting of the user's nickname and nick changes.
         """
-        nick = params
+        nick = params[0]
 
         # Valid nickname?
         if re.search('[^a-zA-Z0-9\-\[\]\'`^{}_]', nick):
@@ -194,14 +272,8 @@ class IRCClient(socketserver.BaseRequestHandler):
             # and MOTD.
             self.nick = nick
             self.server.clients.add(self)
-            response = ':%s %s %s :%s' % (self.server.servername,
-                                          events.codes['welcome'],
-                                          self.nick, SRV_WELCOME)
-            self.send_queue.append(response)
-
-            response = ':%s %s %s :End of MOTD command.' % (
-                self.server.servername, events.codes['endofmotd'], self.nick)
-            self.send_queue.append(response)
+            self.server_msg(events.codes['welcome'], [self.nick, SRV_WELCOME])
+            self.server_msg(events.codes['endofmotd'], [self.nick])
             return
         else:
             # Nick is available. Change the nick.
@@ -215,8 +287,6 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Handle the USER command which identifies the user to the server.
         """
-        params = params.split(' ', 3)
-
         if len(params) != 4:
             raise IRCError('needmoreparams', 'USER :Not enough parameters')
 
@@ -238,7 +308,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         Handle the JOINing of a user to a channel. Valid channel names start
         with a # and consist of a-z, A-Z, 0-9 and/or '_' and '.'.
         """
-        channel_names = params.split(' ', 1)[0]  # Ignore keys
+        channel_names = params[0]  # Ignore keys
         for channel_name in channel_names.split(','):
             r_channel_name = channel_name.strip()
 
@@ -249,32 +319,39 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             # Add user to the channel (create new channel if not exists)
             channel = self.server.get_channel(r_channel_name)
+            channel.topic = 'Welcome to the %s stream' % r_channel_name
             channel.clients.add(self)
 
             # Add channel to user's channel list
             self.channels[channel.name] = channel
 
+            # Send join message yourself
+            self.client_msg('JOIN', [r_channel_name])
+
             # Send the topic
-            response_join = ':%s TOPIC %s :%s' % (channel.topic_by,
-                                                  channel.name, channel.topic)
-            self.send_queue.append(response_join)
+            self.server_msg(events.codes['currenttopic'], [
+                self.nick,
+                channel.name,
+                channel.topic,
+                ])
+            # topicinfo?
 
-            # Send join message to everybody in the channel, including yourself
-            # and send user list of the channel back to the user.
-            response_join = ':%s JOIN :%s' % (self.client_ident(),
-                                              r_channel_name)
-
+            # Send user list of the channel back to the user.
             # Only return ourselves and the bot, not others in the channel
             nicks = (self.nick, BOTNAME)
 
-            _vals = (self.server.servername, self.nick, channel.name,
-                     ' '.join(nicks))
-            response_userlist = ':%s 353 %s = %s :%s' % _vals
-            self.send_queue.append(response_userlist)
+            self.server_msg(events.codes['namreply'], [
+                self.nick,
+                '=',
+                channel.name,
+                ' '.join(nicks),
+                ])
 
-            _vals = self.server.servername, self.nick, channel.name
-            response = ':%s 366 %s %s :End of /NAMES list' % _vals
-            self.send_queue.append(response)
+            self.server_msg(events.codes['endofnames'], [
+                self.nick,
+                channel.name,
+                'End of /NAMES list',
+                ])
 
     def handle_privmsg(self, params):
         """
@@ -287,7 +364,6 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise IRCError('needmoreparams', 'PRIVMSG :Not enough parameters')
 
         if target.startswith('#') or target.startswith('$'):
-            # Message to channel. Check if the channel exists.
             raise IRCError('cannotsendtochan',
                            '%s :Cannot send to channel' % target)
         else:
@@ -297,31 +373,25 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Handle a client parting from channel(s).
         """
-        for pchannel in params.split(','):
+        for pchannel in params[0].split(','):
             if pchannel.strip() in self.server.channels:
                 # Send message to all clients in all channels user is in, and
                 # remove the user from the channels.
                 channel = self.server.channels.get(pchannel.strip())
-                response = ':%s PART :%s' % (self.client_ident(), pchannel)
-
                 if channel and self in channel.clients:
-                    self.send_queue.append(response)
+                    self.client_msg("PART", [pchannel])
                     channel.clients.remove(self)
                     self.channels.pop(pchannel)
             else:
-                _vars = self.server.servername, pchannel, pchannel
-                response = ':%s 403 %s :%s' % _vars
-                self.send_queue.append(response)
+                self.server_msg(events.codes['nosuchchannel'],
+                                [pchannel, 'No such channel'])
 
     def handle_quit(self, params):
         """
         Handle the client breaking off the connection with a QUIT command.
         """
-        response = ':%s QUIT :%s' % (self.client_ident(), params.lstrip(':'))
-        # Send quit message to all clients in all channels user is in, and
-        # remove the user from the channels.
+        # Remove the user from the channels.
         for channel in self.channels.values():
-            self.send_queue.append(response)
             channel.clients.remove(self)
 
         raise self.Disconnect()
@@ -346,12 +416,9 @@ class IRCClient(socketserver.BaseRequestHandler):
         the client didn't properly close the connection with PART and QUIT.
         """
         log.info('Client disconnected: %s', self.internal_ident())
-        response = ':%s QUIT :EOF from client' % self.client_ident()
         for channel in self.channels.values():
             if self in channel.clients:
-                # Client is gone without properly QUITing or PARTing this
-                # channel.
-                self.send_queue.append(response)
+                self.client_msg('QUIT', ['EOF from client'])
                 channel.clients.remove(self)
 
         self.server.clients.remove(self)
@@ -395,11 +462,11 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
     def broadcast(self, target, msg):
         botid = BOTNAME + "!" + BOTNAME + "@" + self.servername
-        message = ':%s PRIVMSG %s %s' % (botid, target, msg)
+        message = IRCMessage('PRIVMSG', [target, msg], source=botid)
 
         channel = self.get_channel(target)
         for client in channel.clients:
-            client.send_queue.append(message)
+            client.send_queue.append(str(message))
 
 
 class EchoHandler(socketserver.BaseRequestHandler):
@@ -407,15 +474,14 @@ class EchoHandler(socketserver.BaseRequestHandler):
         data = self.request[0]
         data = data.decode('utf-8')
 
-        log.debug('received: %s' % data)
-
         sp = data.split("\t")
-        if len(sp) != 2:
+        try:
+            channel = sp[0].strip()
+            text = sp[1].lstrip().replace('\r', '').replace('\n', '')
+        except Exception:
             return
 
-        channel = sp[0].strip()
-        text = sp[1].lstrip().replace('\r', '').replace('\n', '')
-
+        log.debug('Broadcasting to %s: %s' % (channel, text))
         self.server.irc.broadcast(channel, text)
 
 
