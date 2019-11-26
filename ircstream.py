@@ -37,7 +37,7 @@ import select
 import re
 import threading
 import socketserver
-import events
+import ircnumeric
 
 BOTNAME = 'rc-pmtpa'
 SRV_WELCOME = """
@@ -130,7 +130,7 @@ class IRCError(Exception):
     server/client error.
     """
     def __init__(self, code, value):
-        self.code = events.codes[code]
+        self.code = ircnumeric.codes[code]
         self.value = value
 
     def __str__(self):
@@ -230,7 +230,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             if not handler:
                 log.info('No handler for command "%s" from client %s',
                          msg.command, self.internal_ident)
-                raise IRCError('unknowncommand',
+                raise IRCError('ERR_UNKNOWNCOMMAND',
                                '%s :Unknown command' % msg.command)
             handler(msg.params)
         except IRCError as e:
@@ -265,19 +265,20 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Handle the initial setting of the user's nickname and nick changes.
         """
+        # TODO: handle no nick given, emit 431
         nick = params[0]
 
         # Valid nickname?
         if re.search('[^a-zA-Z0-9\-\[\]\'`^{}_]', nick):
-            raise IRCError('erroneusnickname', ':%s' % nick)
+            raise IRCError('ERR_ERRONEUSNICKNAME', ':%s' % nick)
 
         if not self.nick:
             # New connection and nick is available; register and send welcome
             # and MOTD.
             self.nick = nick
             self.server.clients.add(self)
-            self.server_msg(events.codes['welcome'], [self.nick, SRV_WELCOME])
-            self.server_msg(events.codes['endofmotd'], [self.nick])
+            self.server_msg(ircnumeric.codes['RPL_WELCOME'], [self.nick, SRV_WELCOME])
+            self.server_msg(ircnumeric.codes['RPL_ENDOFMOTD'], [self.nick])
         else:
             # Nick is available. Change the nick.
             self.nick = nick
@@ -288,7 +289,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         Handle the USER command which identifies the user to the server.
         """
         if len(params) != 4:
-            raise IRCError('needmoreparams', 'USER :Not enough parameters')
+            raise IRCError('ERR_NEEDMOREPARAMS', 'USER :Not enough parameters')
 
         user, mode, unused, realname = params
         self.user = user
@@ -313,7 +314,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             # Valid channel name?
             if not re.match('^#([a-zA-Z0-9_.])+$', r_channel_name):
-                raise IRCError('nosuchchannel',
+                raise IRCError('ERR_NOSUCHCHANNEL',
                                '%s :No such channel' % r_channel_name)
 
             # Add user to the channel (create new channel if not exists)
@@ -333,10 +334,10 @@ class IRCClient(socketserver.BaseRequestHandler):
         channel = params[0]
 
         if len(params) > 1:
-            raise IRCError('chanoprivsneeded',
+            raise IRCError('ERR_CHANOPRIVSNEEDED',
                            "%s :You're not channel operator" % channel)
         else:
-            self.server_msg(events.codes['currenttopic'], [
+            self.server_msg(ircnumeric.codes['RPL_TOPIC'], [
                 self.nick,
                 channel,
                 'Welcome to the %s stream' % channel,
@@ -349,14 +350,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         # Only return ourselves and the bot, not others in the channel
         nicks = (self.nick, BOTNAME)
 
-        self.server_msg(events.codes['namreply'], [
+        self.server_msg(ircnumeric.codes['RPL_NAMREPLY'], [
             self.nick,
             '=',
             channel,
             ' '.join(nicks),
             ])
 
-        self.server_msg(events.codes['endofnames'], [
+        self.server_msg(ircnumeric.codes['RPL_ENDOFNAMES'], [
             self.nick,
             channel,
             'End of /NAMES list',
@@ -370,13 +371,13 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         target, msg = params[:2]
         if not msg:
-            raise IRCError('needmoreparams', 'PRIVMSG :Not enough parameters')
+            raise IRCError('ERR_NEEDMOREPARAMS', 'PRIVMSG :Not enough parameters')
 
         if target.startswith('#') or target.startswith('$'):
-            raise IRCError('cannotsendtochan',
+            raise IRCError('ERR_CANNOTSENDTOCHAN',
                            '%s :Cannot send to channel' % target)
         else:
-            raise IRCError('nosuchnick', 'PRIVMSG :%s' % target)
+            raise IRCError('ERR_NOSUCHNICK', 'PRIVMSG :%s' % target)
 
     def handle_part(self, params):
         """
@@ -392,7 +393,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                     channel.clients.remove(self)
                     self.channels.pop(pchannel)
             else:
-                self.server_msg(events.codes['nosuchchannel'],
+                self.server_msg(ircnumeric.codes['ERR_NOSUCHCHANNEL'],
                                 [pchannel, 'No such channel'])
 
     def handle_quit(self, params):
