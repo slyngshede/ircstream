@@ -265,7 +265,11 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Handle the initial setting of the user's nickname and nick changes.
         """
-        # TODO: handle no nick given, emit 431
+
+        if len(params) < 1:
+            raise IRCError('ERR_NONICKNAMEGIVEN', ':No nickname given')
+
+        # if multiple params given, keep the first and ignore the rest
         nick = params[0]
 
         # Valid nickname?
@@ -273,14 +277,14 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise IRCError('ERR_ERRONEUSNICKNAME', ':%s' % nick)
 
         if not self.nick:
-            # New connection and nick is available; register and send welcome
-            # and MOTD.
+            # new registration
             self.nick = nick
-            self.server.clients.add(self)
-            self.server_msg(ircnumeric.codes['RPL_WELCOME'], [self.nick, SRV_WELCOME])
-            self.server_msg(ircnumeric.codes['RPL_ENDOFMOTD'], [self.nick])
+
+            # we have both USER and NICK, end registration
+            if self.user:
+                self.end_registration()
         else:
-            # Nick is available. Change the nick.
+            # changing nicks
             self.nick = nick
             self.client_msg('NICK', nick)
 
@@ -291,10 +295,22 @@ class IRCClient(socketserver.BaseRequestHandler):
         if len(params) != 4:
             raise IRCError('ERR_NEEDMOREPARAMS', 'USER :Not enough parameters')
 
+        if self.user:
+            raise IRCError('ERR_ALREADYREGISTERED', ':You may not reregister')
+
         user, mode, unused, realname = params
         self.user = user
         self.mode = mode
         self.realname = realname
+
+        # we have both USER and NICK, end registration
+        if self.nick:
+            self.end_registration()
+
+    def end_registration(self):
+        self.server_msg(ircnumeric.codes['RPL_WELCOME'], [self.nick, SRV_WELCOME])
+        self.server_msg(ircnumeric.codes['RPL_ENDOFMOTD'], [self.nick])
+        self.server.clients.add(self)
 
     def handle_ping(self, params):
         """
