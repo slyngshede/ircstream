@@ -57,9 +57,9 @@ SRV_WELCOME = """
 - If you want to talk, please join one of the many
 - Wikimedia-related channels on irc.freenode.net.
 -
-- Alternatively, you can use Wikimedia's RCStream service,
-- which streams recent changes as JSON using the WebSockets protocol.
-- See https://wikitech.wikimedia.org/wiki/RCStream for details.
+- Alternatively, you can use Wikimedia's EventStreams service,
+- which streams recent changes as JSON using the SSE protocol.
+- See https://wikitech.wikimedia.org/wiki/EventStreams for details.
 """
 
 log = logging.getLogger("ircstream")
