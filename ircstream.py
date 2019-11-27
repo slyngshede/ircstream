@@ -11,9 +11,6 @@
 # License: MIT
 
 # TODO:
-# - fix user registration
-#   + needs 002, 003, 004, 005
-#   + possibly needs 251, 252, 254, 255, 265, 266, 372
 # - add len(params) checks in all handle_*
 # - audit all handle_* for conformance to RFC
 #   + https://www.ietf.org/rfc/rfc1459.txt
@@ -30,6 +27,7 @@
 # - SSL (separate port? STARTTLS? STS?)
 
 import argparse
+import datetime
 import errno
 import logging
 import socket
@@ -39,6 +37,9 @@ import threading
 import socketserver
 import ircnumeric
 
+__version__ = "0.1"
+
+NETWORK = "Wikimedia"
 BOTNAME = "rc-pmtpa"
 SRV_WELCOME = """
 *******************************************************
@@ -327,6 +328,30 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def end_registration(self):
         self.server_msg("RPL_WELCOME", "Welcome to IRCStream")
+        self.server_msg(
+            "RPL_YOURHOST",
+            f"Your host is {self.server.servername}, running version {__version__}",
+        )
+        self.server_msg(
+            "RPL_CREATED", f"This server was created {self.server.boot_time:%c}"
+        )
+        self.server_msg(
+            "RPL_MYINFO", f"{self.server.servername} {__version__} i bklmtn",
+        )
+        self.server_msg(
+            "RPL_ISUPPORT",
+            [
+                f"NETWORK={NETWORK}",
+                "CASEMAPPING=rfc1459",
+                "CHANLIMIT=#:20000",
+                "CHANMODES=b,k,l,mtn",
+                "CHANNELLEN=50",
+                "CHANTYPES=#",
+                "PREFIX=",
+                "SAFELIST",
+                "are available on this server",
+            ],
+        )
         self.handle_motd([])
         self.server.clients.add(self)
 
@@ -489,7 +514,8 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     "Connected clients (IRCClient instances) by nick name"
 
     def __init__(self, *args, **kwargs):
-        self.servername = "localhost"
+        self.servername = "localhost"  # TODO
+        self.boot_time = datetime.datetime.utcnow()
         self.channels = {}
         self.clients = set()
 
