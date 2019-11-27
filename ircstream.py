@@ -176,8 +176,16 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.send_queue.append(str(msg))
 
     def server_msg(self, command, params):
+        # allow bare strings as a parameter and do the right thing
+        if type(params) == str:
+            params = [params]
+
         if command.startswith("RPL_") or command.startswith("ERR_"):
+            # use the numeric code for the command
             command = ircnumeric.codes[command]
+            # start replies with the nickname, always
+            params.insert(0, self.nick)
+
         msg = IRCMessage(command, params, self.server.servername)
         self.send_queue.append(str(msg))
 
@@ -318,22 +326,22 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.end_registration()
 
     def end_registration(self):
-        self.server_msg("RPL_WELCOME", [self.nick, "Welcome to IRCStream"])
+        self.server_msg("RPL_WELCOME", "Welcome to IRCStream")
         self.handle_motd([])
         self.server.clients.add(self)
 
     def handle_motd(self, params):
-        self.server_msg("RPL_MOTDSTART", [self.nick, "- Message of the day -"])
+        self.server_msg("RPL_MOTDSTART", "- Message of the day -")
         for line in SRV_WELCOME.strip().split("\n"):
-            self.server_msg("RPL_MOTD", [self.nick, "- " + line])
-        self.server_msg("RPL_ENDOFMOTD", [self.nick, "End of /MOTD command."])
+            self.server_msg("RPL_MOTD", "- " + line)
+        self.server_msg("RPL_ENDOFMOTD", "End of /MOTD command.")
 
     def handle_ping(self, params):
         """
         Handle client PING requests to keep the connection alive.
         """
         origin = params[0]
-        self.server_msg("PONG", [origin])
+        self.server_msg("PONG", origin)
 
     def handle_join(self, params):
         """
@@ -372,7 +380,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             )
         else:
             self.server_msg(
-                "RPL_TOPIC", [self.nick, channel, "Welcome to the %s stream" % channel,]
+                "RPL_TOPIC", [channel, "Welcome to the %s stream" % channel]
             )
 
     def handle_names(self, params):
@@ -382,9 +390,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         # Only return ourselves and the bot, not others in the channel
         nicks = (self.nick, BOTNAME)
 
-        self.server_msg("RPL_NAMREPLY", [self.nick, "=", channel, " ".join(nicks),])
-
-        self.server_msg("RPL_ENDOFNAMES", [self.nick, channel, "End of /NAMES list",])
+        self.server_msg("RPL_NAMREPLY", ["=", channel, " ".join(nicks)])
+        self.server_msg("RPL_ENDOFNAMES", [channel, "End of /NAMES list"])
 
     def handle_privmsg(self, params):
         """
