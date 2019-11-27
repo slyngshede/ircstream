@@ -39,7 +39,7 @@ import threading
 import socketserver
 import ircnumeric
 
-BOTNAME = 'rc-pmtpa'
+BOTNAME = "rc-pmtpa"
 SRV_WELCOME = """
 - *******************************************************
 - This is the Wikimedia RC->IRC gateway
@@ -73,10 +73,10 @@ class IRCMessage(object):
 
     @classmethod
     def from_message(cls, message):
-        s = message.split(' ')
+        s = message.split(" ")
 
         source = None
-        if s[0].startswith(':'):
+        if s[0].startswith(":"):
             source = s[0][1:]
             s = s[1:]
 
@@ -86,11 +86,11 @@ class IRCMessage(object):
 
         while len(original_params):
             # skip multiple spaces in middle of message, as per 1459
-            if original_params[0] == '' and len(original_params) > 1:
+            if original_params[0] == "" and len(original_params) > 1:
                 original_params.pop(0)
                 continue
-            elif original_params[0].startswith(':'):
-                arg = ' '.join(original_params)[1:]
+            elif original_params[0].startswith(":"):
+                arg = " ".join(original_params)[1:]
                 params.append(arg)
                 break
             else:
@@ -102,7 +102,7 @@ class IRCMessage(object):
         components = []
 
         if self.source:
-            components.append(':' + self.source)
+            components.append(":" + self.source)
 
         components.append(self.command)
 
@@ -110,15 +110,15 @@ class IRCMessage(object):
             base = []
             for arg in self.params:
                 casted = str(arg)
-                if casted and ' ' not in casted and casted[0] != ':':
+                if casted and " " not in casted and casted[0] != ":":
                     base.append(casted)
                 else:
-                    base.append(':' + casted)
+                    base.append(":" + casted)
                     break
 
-            components.append(' '.join(base))
+            components.append(" ".join(base))
 
-        return ' '.join(components)
+        return " ".join(components)
 
     def __repr__(self):
         return '<IRCMessage: "{0}">'.format(self.command)
@@ -129,6 +129,7 @@ class IRCError(Exception):
     Exception thrown by IRC command handlers to notify client of a
     server/client error.
     """
+
     def __init__(self, code, value):
         self.code = ircnumeric.codes[code]
         self.value = value
@@ -141,9 +142,10 @@ class IRCChannel(object):
     """
     An IRC channel.
     """
-    def __init__(self, name, topic='No topic'):
+
+    def __init__(self, name, topic="No topic"):
         self.name = name
-        self.topic_by = 'Unknown'
+        self.topic_by = "Unknown"
         self.topic = topic
         self.clients = set()
 
@@ -155,16 +157,17 @@ class IRCClient(socketserver.BaseRequestHandler):
     client.  It then handles commands sent by the client by dispatching them to
     the ``handle_`` methods.
     """
+
     class Disconnect(BaseException):
         pass
 
     def __init__(self, request, client_address, server):
         self.host = "{}:{}".format(*client_address)
         self.user = None
-        self.realname = None        # Client's real name
-        self.nick = None            # Client's currently registered nickname
-        self.send_queue = []        # Messages to send to client (strings)
-        self.channels = {}          # Channels the client is in
+        self.realname = None  # Client's real name
+        self.nick = None  # Client's currently registered nickname
+        self.send_queue = []  # Messages to send to client (strings)
+        self.channels = {}  # Channels the client is in
 
         super().__init__(request, client_address, server)
 
@@ -179,8 +182,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.send_queue.append(str(msg))
 
     def handle(self):
-        log.info('Client connected: %s', self.host)
-        self.buffer = b''
+        log.info("Client connected: %s", self.host)
+        self.buffer = b""
 
         try:
             while True:
@@ -193,7 +196,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         Handle one read/write cycle.
         """
         ready_to_read, ready_to_write, in_error = select.select(
-            [self.request], [], [self.request], 0.1)
+            [self.request], [], [self.request], 0.1
+        )
 
         if in_error:
             raise self.Disconnect()
@@ -217,37 +221,41 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise self.Disconnect()
 
         self.buffer += data
-        lines = re.split(b'\r?\n', self.buffer)
+        lines = re.split(b"\r?\n", self.buffer)
         self.buffer = lines.pop()
 
         for line in lines:
-            line = line.decode('utf-8')
+            line = line.decode("utf-8")
             self._handle_line(line)
 
     def _handle_line(self, line):
         try:
-            log.debug('<- %s: %s' % (self.internal_ident, line))
+            log.debug("<- %s: %s" % (self.internal_ident, line))
             msg = IRCMessage.from_message(line)
-            handler = getattr(self, 'handle_%s' % msg.command.lower(), None)
+            handler = getattr(self, "handle_%s" % msg.command.lower(), None)
             if not handler:
-                log.info('No handler for command "%s" from client %s',
-                         msg.command, self.internal_ident)
-                raise IRCError('ERR_UNKNOWNCOMMAND',
-                               '%s :Unknown command' % msg.command)
+                log.info(
+                    'No handler for command "%s" from client %s',
+                    msg.command,
+                    self.internal_ident,
+                )
+                raise IRCError(
+                    "ERR_UNKNOWNCOMMAND", "%s :Unknown command" % msg.command
+                )
             handler(msg.params)
         except IRCError as e:
-            response = ':%s %s %s' % (self.server.servername, e.code, e.value)
+            response = ":%s %s %s" % (self.server.servername, e.code, e.value)
             self._send(response)
         except Exception as e:
-            response = ':%s ERROR %r' % (self.server.servername, e)
+            response = ":%s ERROR %r" % (self.server.servername, e)
             self._send(response)
             log.error(str(e))
             raise
 
     def _send(self, msg):
-        log.debug('-> %s: %s', self.internal_ident, msg)
+        log.debug("-> %s: %s", self.internal_ident, msg)
         try:
-            self.request.send(msg.encode('utf-8') + b'\r\n')
+            self.request.send(msg.encode("utf-8") + b"\r\n")
         except socket.error as e:
             if e.errno == errno.EPIPE:
                 raise self.Disconnect()
@@ -269,14 +277,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
 
         if len(params) < 1:
-            raise IRCError('ERR_NONICKNAMEGIVEN', ':No nickname given')
+            raise IRCError("ERR_NONICKNAMEGIVEN", ":No nickname given")
 
         # if multiple params given, keep the first and ignore the rest
         nick = params[0]
 
         # Valid nickname?
-        if re.search('[^a-zA-Z0-9\-\[\]\'`^{}_]', nick):
-            raise IRCError('ERR_ERRONEUSNICKNAME', ':%s' % nick)
+        if re.search("[^a-zA-Z0-9\-\[\]'`^{}_]", nick):
+            raise IRCError("ERR_ERRONEUSNICKNAME", ":%s" % nick)
 
         if not self.nick:
             # new registration
@@ -288,17 +296,17 @@ class IRCClient(socketserver.BaseRequestHandler):
         else:
             # changing nicks
             self.nick = nick
-            self.client_msg('NICK', nick)
+            self.client_msg("NICK", nick)
 
     def handle_user(self, params):
         """
         Handle the USER command which identifies the user to the server.
         """
         if len(params) != 4:
-            raise IRCError('ERR_NEEDMOREPARAMS', 'USER :Not enough parameters')
+            raise IRCError("ERR_NEEDMOREPARAMS", "USER :Not enough parameters")
 
         if self.user:
-            raise IRCError('ERR_ALREADYREGISTERED', ':You may not reregister')
+            raise IRCError("ERR_ALREADYREGISTERED", ":You may not reregister")
 
         user, mode, unused, realname = params
         self.user = user
@@ -327,13 +335,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         with a # and consist of a-z, A-Z, 0-9 and/or '_' and '.'.
         """
         channel_names = params[0]  # Ignore keys
-        for channel_name in channel_names.split(','):
+        for channel_name in channel_names.split(","):
             r_channel_name = channel_name.strip()
 
             # Valid channel name?
-            if not re.match('^#([a-zA-Z0-9_.])+$', r_channel_name):
-                raise IRCError('ERR_NOSUCHCHANNEL',
-                               '%s :No such channel' % r_channel_name)
+            if not re.match("^#([a-zA-Z0-9_.])+$", r_channel_name):
+                raise IRCError(
+                    "ERR_NOSUCHCHANNEL", "%s :No such channel" % r_channel_name
+                )
 
             # Add user to the channel (create new channel if not exists)
             channel = self.server.get_channel(r_channel_name)
@@ -343,7 +352,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.channels[channel.name] = channel
 
             # Send join message yourself
-            self.client_msg('JOIN', [r_channel_name])
+            self.client_msg("JOIN", [r_channel_name])
 
             self.handle_topic([r_channel_name])
             self.handle_names([r_channel_name])
@@ -352,14 +361,13 @@ class IRCClient(socketserver.BaseRequestHandler):
         channel = params[0]
 
         if len(params) > 1:
-            raise IRCError('ERR_CHANOPRIVSNEEDED',
-                           "%s :You're not channel operator" % channel)
+            raise IRCError(
+                "ERR_CHANOPRIVSNEEDED", "%s :You're not channel operator" % channel
+            )
         else:
-            self.server_msg("RPL_TOPIC", [
-                self.nick,
-                channel,
-                'Welcome to the %s stream' % channel,
-                ])
+            self.server_msg(
+                "RPL_TOPIC", [self.nick, channel, "Welcome to the %s stream" % channel,]
+            )
 
     def handle_names(self, params):
         channel = params[0]
@@ -368,18 +376,9 @@ class IRCClient(socketserver.BaseRequestHandler):
         # Only return ourselves and the bot, not others in the channel
         nicks = (self.nick, BOTNAME)
 
-        self.server_msg("RPL_NAMREPLY", [
-            self.nick,
-            '=',
-            channel,
-            ' '.join(nicks),
-            ])
+        self.server_msg("RPL_NAMREPLY", [self.nick, "=", channel, " ".join(nicks),])
 
-        self.server_msg("RPL_ENDOFNAMES", [
-            self.nick,
-            channel,
-            'End of /NAMES list',
-            ])
+        self.server_msg("RPL_ENDOFNAMES", [self.nick, channel, "End of /NAMES list",])
 
     def handle_privmsg(self, params):
         """
@@ -389,19 +388,20 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         target, msg = params[:2]
         if not msg:
-            raise IRCError('ERR_NEEDMOREPARAMS', 'PRIVMSG :Not enough parameters')
+            raise IRCError("ERR_NEEDMOREPARAMS", "PRIVMSG :Not enough parameters")
 
-        if target.startswith('#') or target.startswith('$'):
-            raise IRCError('ERR_CANNOTSENDTOCHAN',
-                           '%s :Cannot send to channel' % target)
+        if target.startswith("#") or target.startswith("$"):
+            raise IRCError(
+                "ERR_CANNOTSENDTOCHAN", "%s :Cannot send to channel" % target
+            )
         else:
-            raise IRCError('ERR_NOSUCHNICK', 'PRIVMSG :%s' % target)
+            raise IRCError("ERR_NOSUCHNICK", "PRIVMSG :%s" % target)
 
     def handle_part(self, params):
         """
         Handle a client parting from channel(s).
         """
-        for pchannel in params[0].split(','):
+        for pchannel in params[0].split(","):
             if pchannel.strip() in self.server.channels:
                 # Send message to all clients in all channels user is in, and
                 # remove the user from the channels.
@@ -411,8 +411,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                     channel.clients.remove(self)
                     self.channels.pop(pchannel)
             else:
-                self.server_msg("ERR_NOSUCHCHANNEL",
-                                [pchannel, 'No such channel'])
+                self.server_msg("ERR_NOSUCHCHANNEL", [pchannel, "No such channel"])
 
     def handle_quit(self, params):
         """
@@ -429,15 +428,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Return the client identifier as included in many command replies.
         """
-        return '{}!{}@{}'.format(
-            self.nick, self.user, self.server.servername)
+        return "{}!{}@{}".format(self.nick, self.user, self.server.servername)
 
     @property
     def internal_ident(self):
         """
         Return the internal (non-wire-protocol) client identifier
         """
-        return '{}!{}/{}'.format(self.nick, self.user, self.host)
+        return "{}!{}/{}".format(self.nick, self.user, self.host)
 
     def finish(self):
         """
@@ -445,26 +443,26 @@ class IRCClient(socketserver.BaseRequestHandler):
         client doesn't linger around in any channel or the client list, in case
         the client didn't properly close the connection with PART and QUIT.
         """
-        log.info('Client disconnected: %s', self.internal_ident)
+        log.info("Client disconnected: %s", self.internal_ident)
         for channel in self.channels.values():
             if self in channel.clients:
-                self.client_msg('QUIT', ['EOF from client'])
+                self.client_msg("QUIT", ["EOF from client"])
                 channel.clients.remove(self)
 
         self.server.clients.remove(self)
-        log.info('Connection finished: %s', self.internal_ident)
+        log.info("Connection finished: %s", self.internal_ident)
 
     def __repr__(self):
         """
         Return a user-readable description of the client
         """
-        return '<%s %s!%s@%s (%s)>' % (
+        return "<%s %s!%s@%s (%s)>" % (
             self.__class__.__name__,
             self.nick,
             self.user,
             self.host[0],
             self.realname,
-            )
+        )
 
 
 class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -478,7 +476,7 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     "Connected clients (IRCClient instances) by nick name"
 
     def __init__(self, *args, **kwargs):
-        self.servername = 'localhost'
+        self.servername = "localhost"
         self.channels = {}
         self.clients = set()
 
@@ -492,7 +490,7 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
     def broadcast(self, target, msg):
         botid = BOTNAME + "!" + BOTNAME + "@" + self.servername
-        message = IRCMessage('PRIVMSG', [target, msg], source=botid)
+        message = IRCMessage("PRIVMSG", [target, msg], source=botid)
 
         channel = self.get_channel(target)
         for client in channel.clients:
@@ -502,16 +500,16 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class EchoHandler(socketserver.BaseRequestHandler):
     def handle(self):
         data = self.request[0]
-        data = data.decode('utf-8')
+        data = data.decode("utf-8")
 
         sp = data.split("\t")
         try:
             channel = sp[0].strip()
-            text = sp[1].lstrip().replace('\r', '').replace('\n', '')
+            text = sp[1].lstrip().replace("\r", "").replace("\n", "")
         except Exception:
             return
 
-        log.debug('Broadcasting to %s: %s' % (channel, text))
+        log.debug("Broadcasting to %s: %s" % (channel, text))
         self.server.irc.broadcast(channel, text)
 
 
@@ -523,15 +521,37 @@ class EchoServer(socketserver.UDPServer):
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-a", "--address", dest="listen_address",
-                        default='127.0.0.1', help="IP on which to listen")
-    parser.add_argument("-p", "--port", dest="listen_port", default=6667,
-                        type=int, help="Port on which to listen")
-    parser.add_argument("-e", "--echo-port", dest="echo_port", default=9390,
-                        type=int, help="Port on which to listen")
-    parser.add_argument('-l', '--log-level', dest="log_level", default='INFO',
-                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-                        help="Set log level (DEBUG, INFO, WARNING, ERROR)")
+    parser.add_argument(
+        "-a",
+        "--address",
+        dest="listen_address",
+        default="127.0.0.1",
+        help="IP on which to listen",
+    )
+    parser.add_argument(
+        "-p",
+        "--port",
+        dest="listen_port",
+        default=6667,
+        type=int,
+        help="Port on which to listen",
+    )
+    parser.add_argument(
+        "-e",
+        "--echo-port",
+        dest="echo_port",
+        default=9390,
+        type=int,
+        help="Port on which to listen",
+    )
+    parser.add_argument(
+        "-l",
+        "--log-level",
+        dest="log_level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Set log level (DEBUG, INFO, WARNING, ERROR)",
+    )
 
     return parser.parse_args()
 
@@ -545,15 +565,15 @@ def main():
     try:
         irc_bind_address = options.listen_address, options.listen_port
         ircserver = IRCServer(irc_bind_address, IRCClient)
-        _tmpl = 'Listening for IRC clients on {listen_address}:{listen_port}'
+        _tmpl = "Listening for IRC clients on {listen_address}:{listen_port}"
         log.info(_tmpl.format(**vars(options)))
         irc_thread = threading.Thread(target=ircserver.serve_forever)
         irc_thread.daemon = True
         irc_thread.start()
 
-        echo_bind_address = '', options.echo_port
+        echo_bind_address = "", options.echo_port
         echoserver = EchoServer(echo_bind_address, EchoHandler)
-        _tmpl = 'Listening for Echo on port {echo_port}'
+        _tmpl = "Listening for Echo on port {echo_port}"
         log.info(_tmpl.format(**vars(options)))
         echoserver.irc = ircserver
 
