@@ -173,6 +173,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.send_queue.append(str(msg))
 
     def server_msg(self, command, params):
+        if command.startswith("RPL_") or command.startswith("ERR_"):
+            command = ircnumeric.codes[command]
         msg = IRCMessage(command, params, self.server.servername)
         self.send_queue.append(str(msg))
 
@@ -308,8 +310,8 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.end_registration()
 
     def end_registration(self):
-        self.server_msg(ircnumeric.codes['RPL_WELCOME'], [self.nick, SRV_WELCOME])
-        self.server_msg(ircnumeric.codes['RPL_ENDOFMOTD'], [self.nick])
+        self.server_msg("RPL_WELCOME", [self.nick, SRV_WELCOME])
+        self.server_msg("RPL_ENDOFMOTD", [self.nick])
         self.server.clients.add(self)
 
     def handle_ping(self, params):
@@ -317,7 +319,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         Handle client PING requests to keep the connection alive.
         """
         origin = params[0]
-        self.server_msg('PONG', [origin])
+        self.server_msg("PONG", [origin])
 
     def handle_join(self, params):
         """
@@ -353,7 +355,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise IRCError('ERR_CHANOPRIVSNEEDED',
                            "%s :You're not channel operator" % channel)
         else:
-            self.server_msg(ircnumeric.codes['RPL_TOPIC'], [
+            self.server_msg("RPL_TOPIC", [
                 self.nick,
                 channel,
                 'Welcome to the %s stream' % channel,
@@ -366,14 +368,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         # Only return ourselves and the bot, not others in the channel
         nicks = (self.nick, BOTNAME)
 
-        self.server_msg(ircnumeric.codes['RPL_NAMREPLY'], [
+        self.server_msg("RPL_NAMREPLY", [
             self.nick,
             '=',
             channel,
             ' '.join(nicks),
             ])
 
-        self.server_msg(ircnumeric.codes['RPL_ENDOFNAMES'], [
+        self.server_msg("RPL_ENDOFNAMES", [
             self.nick,
             channel,
             'End of /NAMES list',
@@ -409,7 +411,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                     channel.clients.remove(self)
                     self.channels.pop(pchannel)
             else:
-                self.server_msg(ircnumeric.codes['ERR_NOSUCHCHANNEL'],
+                self.server_msg("ERR_NOSUCHCHANNEL",
                                 [pchannel, 'No such channel'])
 
     def handle_quit(self, params):
