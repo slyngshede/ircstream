@@ -173,6 +173,10 @@ class IRCClient(socketserver.BaseRequestHandler):
         super().__init__(request, client_address, server)
 
     def client_msg(self, command, params):
+        # allow bare strings as a parameter and do the right thing
+        if type(params) == str:
+            params = [params]
+
         msg = IRCMessage(command, params, self.client_ident)
         self.send_queue.append(str(msg))
 
@@ -304,8 +308,8 @@ class IRCClient(socketserver.BaseRequestHandler):
                 self.end_registration()
         else:
             # changing nicks
-            self.nick = nick
             self.client_msg("NICK", nick)
+            self.nick = nick
 
     def handle_user(self, params):
         """
@@ -391,7 +395,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.channels[channel.name] = channel
 
             # Send join message yourself
-            self.client_msg("JOIN", [r_channel_name])
+            self.client_msg("JOIN", r_channel_name)
 
             self.handle_topic([r_channel_name])
             self.handle_names([r_channel_name])
@@ -445,7 +449,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 # remove the user from the channels.
                 channel = self.server.channels.get(pchannel.strip())
                 if channel and self in channel.clients:
-                    self.client_msg("PART", [pchannel])
+                    self.client_msg("PART", pchannel)
                     channel.clients.remove(self)
                     self.channels.pop(pchannel)
             else:
@@ -484,7 +488,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         log.info("Client disconnected: %s", self.internal_ident)
         for channel in self.channels.values():
             if self in channel.clients:
-                self.client_msg("QUIT", ["EOF from client"])
+                self.client_msg("QUIT", "EOF from client")
                 channel.clients.remove(self)
 
         self.server.clients.remove(self)
