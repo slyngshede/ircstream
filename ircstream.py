@@ -41,25 +41,25 @@ import ircnumeric
 
 BOTNAME = "rc-pmtpa"
 SRV_WELCOME = """
-- *******************************************************
-- This is the Wikimedia RC->IRC gateway
--
-- https://wikitech.wikimedia.org/wiki/Irc.wikimedia.org
-- *******************************************************
-- Sending messages to channels is not allowed.
--
-- A channel exists for all Wikimedia wikis which have been
-- changed since the last time the server was restarted. In
-- general, the name is just the domain name with the .org
-- left off. For example, the changes on the English Wikipedia
-- are available at #en.wikipedia
--
-- If you want to talk, please join one of the many
-- Wikimedia-related channels on irc.freenode.net.
--
-- Alternatively, you can use Wikimedia's EventStreams service,
-- which streams recent changes as JSON using the SSE protocol.
-- See https://wikitech.wikimedia.org/wiki/EventStreams for details.
+*******************************************************
+This is the Wikimedia RC->IRC gateway
+
+https://wikitech.wikimedia.org/wiki/Irc.wikimedia.org
+*******************************************************
+Sending messages to channels is not allowed.
+
+A channel exists for all Wikimedia wikis which have been
+changed since the last time the server was restarted. In
+general, the name is just the domain name with the .org
+left off. For example, the changes on the English Wikipedia
+are available at #en.wikipedia
+
+If you want to talk, please join one of the many
+Wikimedia-related channels on irc.freenode.net.
+
+Alternatively, you can use Wikimedia's EventStreams service,
+which streams recent changes as JSON using the SSE protocol.
+See https://wikitech.wikimedia.org/wiki/EventStreams for details.
 """
 
 log = logging.getLogger("ircstream")
@@ -318,9 +318,15 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.end_registration()
 
     def end_registration(self):
-        self.server_msg("RPL_WELCOME", [self.nick, SRV_WELCOME])
-        self.server_msg("RPL_ENDOFMOTD", [self.nick])
+        self.server_msg("RPL_WELCOME", [self.nick, "Welcome to IRCStream"])
+        self.handle_motd([])
         self.server.clients.add(self)
+
+    def handle_motd(self, params):
+        self.server_msg("RPL_MOTDSTART", [self.nick, "- Message of the day -"])
+        for line in SRV_WELCOME.strip().split("\n"):
+            self.server_msg("RPL_MOTD", [self.nick, "- " + line])
+        self.server_msg("RPL_ENDOFMOTD", [self.nick, "End of /MOTD command."])
 
     def handle_ping(self, params):
         """
