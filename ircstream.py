@@ -131,12 +131,9 @@ class IRCError(Exception):
     server/client error.
     """
 
-    def __init__(self, code, value):
-        self.code = ircnumeric.codes[code]
-        self.value = value
-
-    def __str__(self):
-        return repr(self.value)
+    def __init__(self, command, params):
+        self.command = command
+        self.params = params
 
 
 class IRCChannel(object):
@@ -189,7 +186,10 @@ class IRCClient(socketserver.BaseRequestHandler):
             # use the numeric code for the command
             command = ircnumeric.codes[command]
             # start replies with the nickname, always
-            params.insert(0, self.nick)
+            if self.nick:
+                params.insert(0, self.nick)
+            else:
+                params.insert(0, "*")
 
         msg = IRCMessage(command, params, self.server.servername)
         self.send_queue.append(str(msg))
@@ -238,32 +238,29 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.buffer = lines.pop()
 
         for line in lines:
-            line = line.decode("utf-8")
             self._handle_line(line)
 
     def _handle_line(self, line):
         try:
+            line = line.decode("utf-8")
             log.debug("<- %s: %s" % (self.internal_ident, line))
             msg = IRCMessage.from_message(line)
             handler = getattr(self, "handle_%s" % msg.command.lower(), None)
             if not handler:
-                log.info(
+                log.debug(
                     'No handler for command "%s" from client %s',
                     msg.command,
                     self.internal_ident,
                 )
-                raise IRCError(
-                    "ERR_UNKNOWNCOMMAND", "%s :Unknown command" % msg.command
-                )
+                raise IRCError("ERR_UNKNOWNCOMMAND", [msg.command, "Unknown command"])
             handler(msg.params)
-        except IRCError as e:
-            response = ":%s %s %s" % (self.server.servername, e.code, e.value)
-            self._send(response)
-        except Exception as e:
-            response = ":%s ERROR %r" % (self.server.servername, e)
-            self._send(response)
-            log.error(str(e))
-            raise
+        except IRCError as exc:
+            self.server_msg(exc.command, exc.params)
+        except UnicodeDecodeError as exc:
+            pass
+        except Exception as exc:
+            self.server_msg("ERROR", f"Internal server error ({exc})")
+            log.exception("Internal server error: %s", exc)
 
     def _send(self, msg):
         log.debug("-> %s: %s", self.internal_ident, msg)
@@ -290,14 +287,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
 
         if len(params) < 1:
-            raise IRCError("ERR_NONICKNAMEGIVEN", ":No nickname given")
+            raise IRCError("ERR_NONICKNAMEGIVEN", "No nickname given")
 
         # if multiple params given, keep the first and ignore the rest
         nick = params[0]
 
         # Valid nickname?
         if re.search("[^a-zA-Z0-9\-\[\]'`^{}_]", nick):
-            raise IRCError("ERR_ERRONEUSNICKNAME", ":%s" % nick)
+            raise IRCError("ERR_ERRONEUSNICKNAME", [nick, "Erroneus nickname"])
 
         if not self.nick:
             # new registration
@@ -316,10 +313,10 @@ class IRCClient(socketserver.BaseRequestHandler):
         Handle the USER command which identifies the user to the server.
         """
         if len(params) != 4:
-            raise IRCError("ERR_NEEDMOREPARAMS", "USER :Not enough parameters")
+            raise IRCError("ERR_NEEDMOREPARAMS", ["USER", "Not enough parameters"])
 
         if self.user:
-            raise IRCError("ERR_ALREADYREGISTERED", ":You may not reregister")
+            raise IRCError("ERR_ALREADYREGISTERED", "You may not reregister")
 
         user, mode, unused, realname = params
         self.user = user
@@ -369,7 +366,12 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Handle client PING requests to keep the connection alive.
         """
-        origin = params[0]
+
+        try:
+            origin = params[0]
+        except IndexError:
+            raise IRCError("ERR_NOORIGIN", "No origin specified")
+
         self.server_msg("PONG", origin)
 
     def handle_join(self, params):
@@ -383,9 +385,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             # Valid channel name?
             if not re.match("^#([a-zA-Z0-9_.])+$", r_channel_name):
-                raise IRCError(
-                    "ERR_NOSUCHCHANNEL", "%s :No such channel" % r_channel_name
-                )
+                raise IRCError("ERR_NOSUCHCHANNEL", [r_channel_name, "No such channel"])
 
             # Add user to the channel (create new channel if not exists)
             channel = self.server.get_channel(r_channel_name)
@@ -405,7 +405,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         if len(params) > 1:
             raise IRCError(
-                "ERR_CHANOPRIVSNEEDED", "%s :You're not channel operator" % channel
+                "ERR_CHANOPRIVSNEEDED", [channel, "You're not channel operator"]
             )
         else:
             self.server_msg(
@@ -430,14 +430,12 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         target, msg = params[:2]
         if not msg:
-            raise IRCError("ERR_NEEDMOREPARAMS", "PRIVMSG :Not enough parameters")
+            raise IRCError("ERR_NEEDMOREPARAMS", ["PRIVMSG", "Not enough parameters"])
 
         if target.startswith("#") or target.startswith("$"):
-            raise IRCError(
-                "ERR_CANNOTSENDTOCHAN", "%s :Cannot send to channel" % target
-            )
+            raise IRCError("ERR_CANNOTSENDTOCHAN", [target, "Cannot send to channel"])
         else:
-            raise IRCError("ERR_NOSUCHNICK", "PRIVMSG :%s" % target)
+            raise IRCError("ERR_NOSUCHNICK", [target, "No such nick/channel"])
 
     def handle_part(self, params):
         """
@@ -491,7 +489,11 @@ class IRCClient(socketserver.BaseRequestHandler):
                 self.client_msg("QUIT", "EOF from client")
                 channel.clients.remove(self)
 
-        self.server.clients.remove(self)
+        try:
+            self.server.clients.remove(self)
+        except KeyError:
+            # was never added, e.g. if was never identified
+            pass
         log.info("Connection finished: %s", self.internal_ident)
 
     def __repr__(self):
