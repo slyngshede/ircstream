@@ -11,9 +11,6 @@
 # License: MIT
 
 # TODO:
-# - remove %s, and .format() and use
-#   + f-strings
-#   + log-formatter with {
 # - add len(params) checks in all handle_*
 # - audit all handle_* for conformance to RFC
 #   + https://www.ietf.org/rfc/rfc1459.txt
@@ -29,6 +26,7 @@
 # - handle QUIT better
 # - remove all the otrere etc.
 # - cleanup IRCMessage
+# - better docstrings
 # - pylint!
 # - strong typing
 # ---v1
@@ -261,12 +259,12 @@ class IRCClient(socketserver.BaseRequestHandler):
     def _handle_line(self, line):
         try:
             line = line.decode("utf-8")
-            log.debug("<- %s: %s" % (self.internal_ident, line))
+            log.debug("<- %s: %s", self.internal_ident, line)
             msg = IRCMessage.from_message(line)
-            handler = getattr(self, "handle_%s" % msg.command.lower(), None)
+            handler = getattr(self, f"handle_{msg.command.lower()}", None)
             if not handler:
                 log.debug(
-                    'No handler for command "%s" from client %s',
+                    'No handler for command "%s" (client %s)',
                     msg.command,
                     self.internal_ident,
                 )
@@ -426,7 +424,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 RPL.CHANOPRIVSNEEDED, [channel, "You're not channel operator"]
             )
         else:
-            self.server_msg(RPL.TOPIC, [channel, "Welcome to the %s stream" % channel])
+            self.server_msg(RPL.TOPIC, [channel, f"Welcome to the {channel} stream"])
 
     def handle_names(self, params):
         channel = params[0]
@@ -484,14 +482,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Return the client identifier as included in many command replies.
         """
-        return "{}!{}@{}".format(self.nick, self.user, self.server.servername)
+        return f"{self.nick}!{self.username}@{self.server.servername}"
 
     @property
     def internal_ident(self):
         """
         Return the internal (non-wire-protocol) client identifier
         """
-        return "{}!{}/{}".format(self.nick, self.user, self.host)
+        return f"{self.nick}!{self.user}/{self.host}"
 
     def finish(self):
         """
@@ -516,13 +514,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Return a user-readable description of the client
         """
-        return "<%s %s!%s@%s (%s)>" % (
-            self.__class__.__name__,
-            self.nick,
-            self.user,
-            self.host[0],
-            self.realname,
-        )
+        return f"<{self.__class__.__name__} {self.internal_ident} {self.realname}>"
 
 
 class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -570,7 +562,7 @@ class EchoHandler(socketserver.BaseRequestHandler):
         except Exception:
             return
 
-        log.debug("Broadcasting to %s: %s" % (channel, text))
+        log.debug("Broadcasting to %s: %s", channel, text)
         self.server.irc.broadcast(channel, text)
 
 
@@ -626,16 +618,16 @@ def main():
     try:
         irc_bind_address = options.listen_address, options.listen_port
         ircserver = IRCServer(irc_bind_address, IRCClient)
-        _tmpl = "Listening for IRC clients on {listen_address}:{listen_port}"
-        log.info(_tmpl.format(**vars(options)))
+        log.info(
+            f"Listening for IRC clients on {options.listen_address}:{options.listen_port}"
+        )
         irc_thread = threading.Thread(target=ircserver.serve_forever)
         irc_thread.daemon = True
         irc_thread.start()
 
         echo_bind_address = "", options.echo_port
         echoserver = EchoServer(echo_bind_address, EchoHandler)
-        _tmpl = "Listening for Echo on port {echo_port}"
-        log.info(_tmpl.format(**vars(options)))
+        log.info(f"Listening for Echo on port {options.echo_port}")
         echoserver.irc = ircserver
 
         echo_thread = threading.Thread(target=echoserver.serve_forever)
