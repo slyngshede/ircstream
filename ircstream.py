@@ -11,20 +11,42 @@
 # License: MIT
 
 # TODO:
+# - Use Enum for RPL/ERR
+# - sort imports
+# - cleanup IRCMessage
+# - remove %s, and .format() and use
+#   + f-strings
+#   + log-formatter with {
 # - add len(params) checks in all handle_*
 # - audit all handle_* for conformance to RFC
 #   + https://www.ietf.org/rfc/rfc1459.txt
 #   + http://ircv3.net/irc/
 #   + https://modern.ircdocs.horse/
+# - remove source from server messages and handle it on client messages
+#    + https://modern.ircdocs.horse/#source
+# - 512 bytes per message limitation
+# - handle numerics from client...?
+# - convert those "pass" handle calls to return the respective unsupported command, instead of nothing
 # - handle WHO
-# - use IRCMessage from IRCError
-# - cleanup IRCMessage
+# - handle LIST?
+# - handle QUIT better
+# - remove all the otrere etc.
+# - pylint!
+# - strong typing
+# ---v1
 # - add PINGs
-# - add statistics/introspection
+# - add a timeout if you're not part of any channels
+# - add statistics/introspection (Prometheus?)
+# ---v1.1
 # - split into multiple files
-# - tests! https://a3nm.net/git/irctk/about
-# - make botname/motd configurable
+# - tests!
+#   + https://a3nm.net/git/irctk/about
+#   + https://github.com/DanielOaks/irc-parser-tests
+# - make network/botname/motd configurable
 # - SSL (separate port? STARTTLS? STS?)
+# ---v1.2
+# - Kafka or SSE
+# ---v2
 
 import argparse
 import datetime
