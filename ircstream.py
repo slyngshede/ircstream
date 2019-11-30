@@ -11,8 +11,6 @@
 # License: MIT
 
 # TODO:
-# - sort imports
-# - cleanup IRCMessage
 # - remove %s, and .format() and use
 #   + f-strings
 #   + log-formatter with {
@@ -30,6 +28,7 @@
 # - handle LIST?
 # - handle QUIT better
 # - remove all the otrere etc.
+# - cleanup IRCMessage
 # - pylint!
 # - strong typing
 # ---v1
@@ -51,11 +50,12 @@ import argparse
 import datetime
 import errno
 import logging
-import socket
-import select
 import re
-import threading
+import select
+import socket
 import socketserver
+import threading
+
 from ircnumeric import RPL, ERR
 
 __version__ = "0.1"
