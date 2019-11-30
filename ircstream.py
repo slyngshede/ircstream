@@ -334,9 +334,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         if self.user:
             raise IRCError(ERR.ALREADYREGISTERED, "You may not reregister")
 
-        user, mode, unused, realname = params
+        user, _, _, realname = params
         self.user = user
-        self.mode = mode
         self.realname = realname
 
         # we have both USER and NICK, end registration
