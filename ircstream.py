@@ -17,7 +17,6 @@
 # TODO:
 # - handle LIST
 # =================
-# - pylint!
 # - strong typing
 # - IPv6 support
 # =================
@@ -83,29 +82,41 @@ which streams recent changes as JSON using the SSE protocol.
 See https://wikitech.wikimedia.org/wiki/EventStreams for details.
 """
 
-log = logging.getLogger("ircstream")
+log = logging.getLogger("ircstream")  # pylint: disable=invalid-name
 
 
-class IRCMessage(object):
-    def __init__(self, command, params=[], source=None):
+class IRCMessage:
+    """
+    Represents an RFC 1459/2681 message.
+
+    Can be either initialized:
+    * with its constructor using a command, params and (optionally) a source
+    * given a preformatted string, using the from_message() class method
+    """
+
+    def __init__(self, command, params, source=None):
         self.command = command
         self.params = params
         self.source = source
 
     @classmethod
     def from_message(cls, message):
-        s = message.split(" ")
+        """
+        Parse a previously formatted IRC message and return an instance of
+        IRCMessage, so that one can query for self.command and self.params.
+        """
+        parts = message.split(" ")
 
         source = None
-        if s[0].startswith(":"):
-            source = s[0][1:]
-            s = s[1:]
+        if parts[0].startswith(":"):
+            source = parts[0][1:]
+            parts = parts[1:]
 
-        command = s[0].upper()
-        original_params = s[1:]
+        command = parts[0].upper()
+        original_params = parts[1:]
         params = []
 
-        while len(original_params):
+        while original_params:
             # skip multiple spaces in middle of message, as per 1459
             if original_params[0] == "" and len(original_params) > 1:
                 original_params.pop(0)
@@ -120,6 +131,9 @@ class IRCMessage(object):
         return cls(command, params, source)
 
     def __str__(self):
+        """
+        Generate an RFC-compliant formatted string for the instance.
+        """
         components = []
 
         if self.source:
@@ -152,11 +166,12 @@ class IRCError(Exception):
     """
 
     def __init__(self, command, params):
+        super().__init__()
         self.command = command
         self.params = params
 
 
-class IRCChannel(object):
+class IRCChannel:  # pylint: disable=too-few-public-methods
     """
     An IRC channel.
     """
@@ -169,6 +184,7 @@ class IRCChannel(object):
 
 
 class IRCClient(socketserver.BaseRequestHandler):
+    # pylint: disable=too-many-instance-attributes
     """
     IRC client connect and command handling. Client connection is handled by
     the ``handle`` method which sets up a two-way communication with the
@@ -177,10 +193,12 @@ class IRCClient(socketserver.BaseRequestHandler):
     """
 
     class Disconnect(BaseException):
-        pass
+        """Raised when we are about to be disconnected from the client."""
 
     def __init__(self, request, client_address, server):
         self.host = client_address
+        self.buffer = b""
+
         self.registered = False
         self.user = None
         self.realname = None  # Client's real name
@@ -191,18 +209,25 @@ class IRCClient(socketserver.BaseRequestHandler):
         super().__init__(request, client_address, server)
 
     def msg(self, command, params, sync=False):
+        """
+        Prepare and queue a response to the client.
+
+        This generally does the right thing, and reduces boilerplate by
+        * using the correct source depending on the command;
+        * prepending the client nickname on replies/errors.
+        """
         # allow a single bare string as a parameter, for convenience
-        if type(params) == str:
+        if isinstance(params, str):
             params = [params]
 
         if command == "ERROR":
             source = None
-        elif type(command) == RPL or type(command) == ERR or command == "PONG":
+        elif isinstance(command, (RPL, ERR)) or command == "PONG":
             source = self.server.servername
         else:
             source = self.client_ident
 
-        if type(command) == RPL or type(command) == ERR:
+        if isinstance(command, (RPL, ERR)):
             command = str(command)
             # always start replies with the client's nickname
             if self.nick:
@@ -230,7 +255,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Handle one read/write cycle.
         """
-        ready_to_read, ready_to_write, in_error = select.select(
+        ready_to_read, _, in_error = select.select(
             [self.request], [], [self.request], 0.1
         )
 
@@ -288,7 +313,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.msg(exc.command, exc.params)
         except UnicodeDecodeError:
             return
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-except
             self.msg("ERROR", f"Internal server error ({exc})")
             log.exception("Internal server error: %s", exc)
 
@@ -296,15 +321,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         log.debug("-> %s: %s", self.internal_ident, msg)
         try:
             self.request.send(msg.encode("utf-8") + b"\r\n")
-        except UnicodeEncodeError:
+        except UnicodeEncodeError as exc:
             log.debug("Internal encoding error: %s", exc)
         except socket.error as exc:
             if exc.errno == errno.EPIPE:
                 raise self.Disconnect()
-            else:
-                raise
+            raise
 
-    def handle_cap(self, params):
+    def handle_cap(self, params):  # pylint: disable=no-self-use
         """Stub for the CAP (capability) command."""
         raise IRCError(ERR.UNKNOWNCOMMAND, ["CAP", "Unknown command"])
 
@@ -393,7 +417,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given")
 
         # is this a valid nickname?
-        if re.search("[^a-zA-Z0-9\-\[\]'`^{}_]", nick):
+        if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick):
             raise IRCError(ERR.ERRONEUSNICKNAME, [nick, "Erroneus nickname"])
 
         if not self.registered:
@@ -457,7 +481,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.handle_motd([])
         self.server.clients.add(self)
 
-    def handle_motd(self, params):
+    def handle_motd(self, params):  # pylint: disable=unused-argument
         """Handle the MOTD command. Also called once a client first connects."""
         self.msg(RPL.MOTDSTART, "- Message of the day -")
         for line in SRV_WELCOME.strip().split("\n"):
@@ -655,6 +679,10 @@ class IRCClient(socketserver.BaseRequestHandler):
 
 
 class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """
+    A socketserver TCPServer instance representing an IRC server.
+    """
+
     daemon_threads = True
     allow_reuse_address = True
 
@@ -679,6 +707,10 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         return self.channels.setdefault(name, IRCChannel(name))
 
     def broadcast(self, target, msg):
+        """
+        Broadcast a message to all clients that have joined a specific channel.
+        The source of the message is the BOTNAME.
+        """
         botid = BOTNAME + "!" + BOTNAME + "@" + self.servername
         message = IRCMessage("PRIVMSG", [target, msg], source=botid)
 
@@ -688,14 +720,18 @@ class IRCServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 
 class EchoHandler(socketserver.BaseRequestHandler):
+    """
+    A socketserver handler implementing the Echo protocol, as used by MediaWiki.
+    """
+
     def handle(self):
         data = self.request[0]
         try:
             data = data.decode("utf-8")
-            sp = data.split("\t")
-            channel = sp[0].strip()
-            text = sp[1].lstrip().replace("\r", "").replace("\n", "")
-        except:
+            channel, text = data.split("\t", maxsplit=1)
+            channel = channel.strip()
+            text = text.lstrip().replace("\r", "").replace("\n", "")
+        except Exception:  # pylint: disable=broad-except
             return
 
         log.debug("Broadcasting to %s: %s", channel, text)
@@ -703,12 +739,25 @@ class EchoHandler(socketserver.BaseRequestHandler):
 
 
 class EchoServer(socketserver.UDPServer):
+    """
+    A socketserver implementing the Echo protocol, as used by MediaWiki.
+    """
+
     daemon_threads = True
     allow_reuse_address = True
 
+    def __init__(self, *args, **kwargs):
+        self.irc = None
+        super().__init__(*args, **kwargs)
 
-def get_args():
-    parser = argparse.ArgumentParser()
+
+def parse_args(argv):
+    """Parse and return the parsed command line arguments."""
+    parser = argparse.ArgumentParser(
+        prog="ircstream",
+        description="EventStream IRC interface",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "-a",
@@ -742,11 +791,12 @@ def get_args():
         help="Set log level (DEBUG, INFO, WARNING, ERROR)",
     )
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main():
-    options = get_args()
+def main(argv=None):
+    """Main entry point"""
+    options = parse_args(argv)
     logging.basicConfig(level=getattr(logging, options.log_level))
 
     log.info("Starting IRCStream")
@@ -755,7 +805,9 @@ def main():
         irc_bind_address = options.listen_address, options.listen_port
         ircserver = IRCServer(irc_bind_address, IRCClient)
         log.info(
-            f"Listening for IRC clients on {options.listen_address}:{options.listen_port}"
+            "Listening for IRC clients on [%s]:%s",
+            options.listen_address,
+            options.listen_port,
         )
         irc_thread = threading.Thread(target=ircserver.serve_forever)
         irc_thread.daemon = True
@@ -763,7 +815,7 @@ def main():
 
         echo_bind_address = "", options.echo_port
         echoserver = EchoServer(echo_bind_address, EchoHandler)
-        log.info(f"Listening for Echo on port {options.echo_port}")
+        log.info("Listening for Echo on port %s", options.echo_port)
         echoserver.irc = ircserver
 
         echo_thread = threading.Thread(target=echoserver.serve_forever)
@@ -773,8 +825,8 @@ def main():
         input()
     except KeyboardInterrupt:
         return
-    except socket.error as e:
-        log.error(repr(e))
+    except socket.error as exc:
+        log.error(repr(exc))
         raise SystemExit(-2)
 
 
