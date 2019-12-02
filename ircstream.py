@@ -98,7 +98,7 @@ See https://wikitech.wikimedia.org/wiki/EventStreams for details.
 
 
 logger = logging.getLogger("ircstream")  # pylint: disable=invalid-name
-log = logging.LoggerAdapter(logger, {"host": "", "clientid": ""})  # pylint: disable=invalid-name
+log = logging.LoggerAdapter(logger, {"host": "", "client_id": ""})  # pylint: disable=invalid-name
 
 
 class IRCNumeric(enum.Enum):
@@ -263,12 +263,12 @@ class IRCClient(socketserver.BaseRequestHandler):
         """Raised when we are about to be disconnected from the client."""
 
     def __init__(self, request: Any, client_address: Any, server: "IRCServer") -> None:
-        self.host, self.hostport = client_address[:2]
+        self.host, self.port = client_address[:2]
         # trim IPv4 mapped prefix
         if self.host.startswith("::ffff:"):
             self.host = self.host[len("::ffff:") :]
 
-        context = {"host": self.host, "clientid": f"[{self.host}]:{self.hostport}"}
+        context = {"ip": self.host, "client_id": f"[{self.host}]:{self.port}"}
         self.log = logging.LoggerAdapter(logger, context)
 
         self.signon = datetime.datetime.utcnow()
@@ -740,7 +740,7 @@ class IRCClient(socketserver.BaseRequestHandler):
     @property
     def internal_ident(self) -> str:
         """Returns the internal (non-wire-protocol) client identifier."""
-        host_port = f"[{self.host}]:{self.hostport}"
+        host_port = f"[{self.host}]:{self.port}"
         if not (self.nick and self.user):
             return f"unidentified/{host_port}"
         return f"{self.nick}!{self.user}/{host_port}"
@@ -882,7 +882,7 @@ def setup_logging(log_level: str) -> None:
     """Sets up logging parameters."""
     logger.setLevel(log_level)
     stream_handler = logging.StreamHandler()
-    fmt = logging.Formatter("%(levelname)s %(clientid)s %(message)s")
+    fmt = logging.Formatter("%(levelname)s %(client_id)s %(message)s")
     stream_handler.setFormatter(fmt)
     logger.addHandler(stream_handler)
 
