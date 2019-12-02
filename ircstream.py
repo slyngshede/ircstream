@@ -397,8 +397,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         elif nickmask == BOTNAME:
             whois_reply(BOTNAME, BOTNAME, self.server.servername, BOTNAME)
         else:
-            # not an IRCError, because we need to send NOSUCHNICK after it
-            self.msg(ERR.NOSUCHNICK, [nickmask, "No such nick/channel"])
+            raise IRCError(ERR.NOSUCHNICK, [nickmask, "No such nick/channel"])
 
         # nicklist and not nickmask, on purpose
         self.msg(RPL.ENDOFWHOIS, [nicklist, "End of /WHOIS list"])
