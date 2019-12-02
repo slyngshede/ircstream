@@ -537,7 +537,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.server.clients.add(self)
         self.log.info("Client identified as %s!%s", self.nick, self.user)
 
-    def handle_motd(self, params: List[str]) -> None:  # pylint: disable=unused-argument
+    def handle_motd(self, _: List[str]) -> None:
         """Handle the MOTD command. Also called once a client first connects."""
         self.msg(RPL.MOTDSTART, "- Message of the day -")
         for line in SRV_WELCOME.strip().split("\n"):
@@ -558,7 +558,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         self.msg("PONG", [destination, origin])
 
-    def handle_pong(self, params: List[str]) -> None:
+    def handle_pong(self, _: List[str]) -> None:
         """
         Handle client PONG responses to keep the connection alive.
         """
