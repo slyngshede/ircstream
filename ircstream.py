@@ -15,8 +15,6 @@
 # * RFC 1459, RFC 2812
 
 # TODO:
-# - handle WHO better
-# =================
 # ----------------------------------------
 # Exception happened during processing of request from ('127.0.0.1', 43218)
 # Traceback (most recent call last):
@@ -341,7 +339,11 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def handle_who(self, params):
         """Stub for the WHO command."""
-        self.msg(RPL.ENDOFWHO, ["*", "End of /WHO list."])
+        try:
+            mask = params[0]
+        except IndexError:
+            mask = "*"
+        self.msg(RPL.ENDOFWHO, [mask, "End of /WHO list."])
 
     def handle_mode(self, params):
         """Handle the MODE command, for both channel and user modes."""
@@ -350,17 +352,24 @@ class IRCClient(socketserver.BaseRequestHandler):
         except IndexError:
             raise IRCError(ERR.NEEDMOREPARAMS, ["MODE", "Not enough parameters"])
 
+        try:
+            modestring = params[1]
+        except IndexError:
+            modestring = None
+
         if target.startswith("#"):
             # channel modes
-            if len(params) > 1:
+            if modestring is None:
+                self.msg(RPL.CHANNELMODEIS, [target, "+mts"])
+            elif modestring == "b":
+                self.msg(RPL.ENDOFBANLIST, [target, "End of channel ban list"])
+            else:
                 raise IRCError(
                     ERR.CHANOPRIVSNEEDED, [target, "You're not a channel operator"]
                 )
-            else:
-                self.msg(RPL.CHANNELMODEIS, [target, "+mts"])
         else:
             # user modes
-            if len(params) > 1:
+            if modestring:
                 # could raise ERR.UMODEUNKNOWNFLAG/"Unknown MODE flag" here
                 # but common clients send a MODE at startup, making this noisy
                 pass
