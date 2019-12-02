@@ -857,23 +857,11 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument(
-        "-a", "--address", dest="listen_address", default="::", help="IP on which to listen",
-    )
-    parser.add_argument(
-        "-p", "--port", dest="listen_port", default=6667, type=int, help="Port on which to listen",
-    )
-    parser.add_argument(
-        "-e", "--echo-port", dest="echo_port", default=9390, type=int, help="Port on which to listen",
-    )
-    parser.add_argument(
-        "-l",
-        "--log-level",
-        dest="log_level",
-        default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Set log level (DEBUG, INFO, WARNING, ERROR)",
-    )
+    parser.add_argument("-a", "--address", dest="listen_address", default="::", help="IP on which to listen")
+    parser.add_argument("-p", "--port", dest="listen_port", default=6667, type=int, help="Port on which to listen")
+    parser.add_argument("-e", "--echo-port", dest="echo_port", default=9390, type=int, help="Port on which to listen")
+    log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
+    parser.add_argument("--log-level", dest="log_level", default="INFO", choices=log_levels, help="Set log level")
 
     return parser.parse_args(argv)
 
@@ -896,9 +884,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     try:
         irc_bind_address = options.listen_address, options.listen_port
         ircserver = IRCServer(irc_bind_address, IRCClient)
-        log.warning(
-            "Listening for IRC clients on [%s]:%s", options.listen_address, options.listen_port,
-        )
+        log.warning("Listening for IRC clients on [%s]:%s", options.listen_address, options.listen_port)
         irc_thread = threading.Thread(target=ircserver.serve_forever)
         irc_thread.daemon = True
         irc_thread.start()
