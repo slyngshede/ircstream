@@ -272,9 +272,10 @@ class IRCClient(socketserver.BaseRequestHandler):
         context = {"host": self.host, "clientid": f"[{self.host}]:{self.hostport}"}
         self.log = logging.LoggerAdapter(logger, context)
 
+        self.signon = datetime.datetime.utcnow()
+        self.keepalive = (self.signon, False)  # (last_heard, ping_sent)
         self.buffer = b""
         self.user, self.realname, self.nick = "", "", ""
-        self.keepalive = (datetime.datetime.utcnow(), False)  # (last_heard, ping_sent)
         self.send_queue: List[str] = []
         self.channels: Dict[str, IRCChannel] = {}
 
@@ -460,7 +461,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         # ignore queries for multiple users (as some networks do)
         nickmask = nicklist.split(",")[0]
 
-        def whois_reply(nick: str, user: str, host: str, realname: str) -> None:
+        def whois_reply(nick: str, user: str, host: str, realname: str, signon: datetime.datetime) -> None:
             # "<host> CANNOT start with a colon as this would get parsed as a
             # trailing parameter – IPv6 addresses such as "::1" are prefixed
             # with a zero to ensure this."
@@ -469,12 +470,12 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.msg(RPL.WHOISUSER, [nick, user, host, "*", realname])
             servername = self.server.servername
             self.msg(RPL.WHOISSERVER, [nick, servername, "IRCStream"])
-            self.msg(RPL.WHOISIDLE, [nick, "0", "seconds idle"])
+            self.msg(RPL.WHOISIDLE, [nick, "0", str(int(signon.timestamp())), "seconds idle, signon time"])
 
         if nickmask == self.nick:
-            whois_reply(self.nick, self.user, self.host, self.realname)
+            whois_reply(self.nick, self.user, self.host, self.realname, self.signon)
         elif nickmask == BOTNAME:
-            whois_reply(BOTNAME, BOTNAME, self.server.servername, BOTNAME)
+            whois_reply(BOTNAME, BOTNAME, self.server.servername, BOTNAME, self.server.boot_time)
         else:
             raise IRCError(ERR.NOSUCHNICK, [nickmask, "No such nick/channel"])
 
