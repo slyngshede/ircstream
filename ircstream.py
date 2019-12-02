@@ -803,7 +803,11 @@ class IRCServer(socketserver.ThreadingTCPServer):
 
         channel = self.get_channel(target)
         for client in channel.clients:
-            client.send_queue.append(str(message))
+            try:
+                client.send_queue.append(str(message))
+            except Exception:  # pylint: disable=broad-except
+                # ignore exceptions, to catch races and other corner cases
+                continue
 
 
 class EchoServer(socketserver.UDPServer):
