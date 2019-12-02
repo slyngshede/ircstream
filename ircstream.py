@@ -57,6 +57,7 @@ __version__ = "0.1"
 
 NETWORK = "Wikimedia"
 BOTNAME = "rc-pmtpa"
+TOPIC_TMPL = "Stream for topic {}"
 SRV_WELCOME = """
 *******************************************************
 This is the Wikimedia RC->IRC gateway
@@ -609,7 +610,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         if len(params) > 1:
             raise IRCError(ERR.CHANOPRIVSNEEDED, [channel, "You're not a channel operator"])
 
-        self.msg(RPL.TOPIC, [channel, f"Welcome to the {channel} stream"])
+        self.msg(RPL.TOPIC, [channel, TOPIC_TMPL.format(channel)])
         botid = BOTNAME + "!" + BOTNAME + "@" + self.server.servername
         self.msg(
             RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))],
@@ -690,7 +691,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             channels = self.channels
 
         for channel in sorted(channels):
-            self.msg(RPL.LIST, [channel, "2", f"Welcome to the {channel} stream"])
+            self.msg(RPL.LIST, [channel, "2", TOPIC_TMPL.format(channel)])
         self.msg(RPL.LISTEND, "End of /LIST")
 
     def handle_quit(self, params: List[str]) -> None:
