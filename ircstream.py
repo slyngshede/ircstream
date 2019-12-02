@@ -19,17 +19,10 @@
 # =================
 # - IPv6 support
 # =================
-# - (reverse) ping
-# =================
 # - logging overhaul
 #   + context with client ID?
 #   + structured logging?
 # =================
-# - remove source from server messages and handle it on client messages
-#    + https://modern.ircdocs.horse/#source
-# - handle numerics from client...?
-# - cleanup IRCMessage
-# - better docstrings
 # - add PINGs
 # - add a timeout if you're not part of any channels
 # - add statistics/introspection (Prometheus?)
@@ -192,7 +185,7 @@ class IRCChannel:  # pylint: disable=too-few-public-methods
 
 
 class IRCClient(socketserver.BaseRequestHandler):
-    # pylint: disable=too-many-instance-attributes
+    # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """
     IRC client connect and command handling. Client connection is handled by
     the ``handle`` method which sets up a two-way communication with the
@@ -628,6 +621,21 @@ class IRCClient(socketserver.BaseRequestHandler):
                 # don't raise IRCError because this can be one of many channels
                 self.msg(ERR.NOTONCHANNEL, [channel, "You're not on that channel"])
 
+    def handle_list(self, params: List[str]) -> None:
+        """
+        Handle the LIST command.
+        """
+        channels: Iterable[str]
+        try:
+            given_channels = params[0]
+            channels = set(self.channels) & set(given_channels.split(","))
+        except IndexError:
+            channels = self.channels
+
+        for channel in sorted(channels):
+            self.msg(RPL.LIST, [channel, "2", f"Welcome to the {channel} stream"])
+        self.msg(RPL.LISTEND, "End of /LIST")
+
     def handle_quit(self, params: List[str]) -> None:
         """
         Handle the client breaking off the connection with a QUIT command.
@@ -696,14 +704,12 @@ class IRCServer(socketserver.ThreadingTCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    channels: Dict[str, IRCChannel] = {}
-    clients: Set[IRCClient] = set()
-
     def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type) -> None:
         self.servername = "localhost"  # TODO
         self.boot_time = datetime.datetime.utcnow()
-        self.channels = {}
-        self.clients = set()
+        self.channels: Dict[str, IRCChannel] = {}
+        self.clients: Set[IRCClient] = set()
+
         super().__init__(server_address, RequestHandlerClass)
 
     def get_channel(self, name: str) -> IRCChannel:
