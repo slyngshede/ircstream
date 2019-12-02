@@ -7,14 +7,16 @@ from enum import Enum
 
 
 class IRCNumeric(Enum):
-    def __str__(self):
-        return self.value
+    """Base class for IRC numeric enums"""
+    def __str__(self) -> str:
+        return str(self.value)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}_{self.name}"
 
 
 class RPL(IRCNumeric):
+    """Standard IRC RPL_* replies, as defined in RFCs"""
     WELCOME = "001"
     YOURHOST = "002"
     CREATED = "003"
@@ -247,6 +249,7 @@ class RPL(IRCNumeric):
 
 
 class ERR(IRCNumeric):
+    """Erroneous IRC ERR_* replies, as defined in RFCs"""
     UNKNOWNERROR = "400"
     NOSUCHNICK = "401"
     NOSUCHSERVER = "402"
