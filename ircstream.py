@@ -191,8 +191,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.host = self.host[len("::ffff:") :]
 
         self.buffer = b""
-        self.user, self.realname, self.nick = "nouser", "noname", "nonick"
-        self.has_user, self.has_nick = False, False
+        self.user, self.realname, self.nick = "", "", ""
         self.keepalive = (datetime.datetime.utcnow(), False)  # (last_heard, ping_sent)
         self.send_queue: List[str] = []
         self.channels: Dict[str, IRCChannel] = {}
@@ -220,7 +219,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         if isinstance(command, (RPL, ERR)):
             # always start replies with the client's nickname
-            if self.has_nick:
+            if self.nick:
                 params.insert(0, self.nick)
             else:
                 params.insert(0, "*")
@@ -295,7 +294,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             msg = IRCMessage.from_message(line)
 
             whitelisted = ("USER", "NICK", "QUIT", "PING", "PONG")
-            if not (self.has_nick and self.has_user) and msg.command not in whitelisted:
+            if not (self.nick and self.user) and msg.command not in whitelisted:
                 raise IRCError(ERR.NOTREGISTERED, "You have not registered")
 
             handler = getattr(self, f"handle_{msg.command.lower()}", None)
@@ -412,13 +411,12 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given")
 
         # is this a valid nickname?
-        if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick):
+        if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick) or len(nick) < 2:
             raise IRCError(ERR.ERRONEUSNICKNAME, [nick, "Erroneus nickname"])
 
-        if not (self.has_nick and self.has_user):
-            self.has_nick = True
+        if not (self.nick and self.user):
             self.nick = nick
-            if self.has_nick and self.has_user:
+            if self.user:
                 self.end_registration()
         else:
             # existing registration, but changing nicks
@@ -432,15 +430,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         except ValueError:
             raise IRCError(ERR.NEEDMOREPARAMS, ["USER", "Not enough parameters"])
 
-        if self.has_user:
+        if self.user:
             raise IRCError(ERR.ALREADYREGISTERED, "You may not reregister")
 
-        self.has_user = True
         self.user = user
         self.realname = realname
 
         # we have both USER and NICK, end registration
-        if self.has_nick and self.has_user:
+        if self.nick:
             self.end_registration()
 
     def end_registration(self) -> None:
@@ -651,14 +648,14 @@ class IRCClient(socketserver.BaseRequestHandler):
     @property
     def client_ident(self) -> str:
         """Return the client identifier as included in many command replies"""
-        if not (self.has_nick and self.has_user):
+        if not (self.nick and self.user):
             raise IRCError(ERR.NOTREGISTERED, "You have not registered")
         return f"{self.nick}!{self.user}@{self.server.servername}"
 
     @property
     def internal_ident(self) -> str:
         """Return the internal (non-wire-protocol) client identifier"""
-        if not (self.has_nick and self.has_user):
+        if not (self.nick and self.user):
             return f"unidentified/{self.host}:{self.hostport}"
         return f"{self.nick}!{self.user}/{self.host}:{self.hostport}"
 
