@@ -90,10 +90,6 @@ See https://wikitech.wikimedia.org/wiki/EventStreams for details.
 """
 
 
-# pylint: disable=bad-continuation
-# black and pylint disagree, so pick black here; see black's #48
-
-
 log = logging.getLogger("ircstream")  # pylint: disable=invalid-name
 
 
@@ -106,9 +102,7 @@ class IRCMessage:
     * given a preformatted string, using the from_message() class method
     """
 
-    def __init__(
-        self, command: str, params: Iterable[str], source: Optional[str] = None
-    ) -> None:
+    def __init__(self, command: str, params: Iterable[str], source: Optional[str] = None) -> None:
         self.command = command
         self.params = params
         self.source = source
@@ -179,9 +173,7 @@ class IRCError(Exception):
     server/client error.
     """
 
-    def __init__(
-        self, command: Union[str, IRCNumeric], params: Union[List[str], str]
-    ) -> None:
+    def __init__(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
         super().__init__()
         self.command = command
         self.params = params
@@ -227,12 +219,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         super().__init__(request, client_address, server)  # type: ignore
 
-    def msg(
-        self,
-        command: Union[str, IRCNumeric],
-        params: Union[List[str], str],
-        sync: bool = False,
-    ) -> None:
+    def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str], sync: bool = False,) -> None:
         """
         Prepare and queue a response to the client.
 
@@ -278,9 +265,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Handle one read/write cycle.
         """
-        ready_to_read, _, in_error = select.select(
-            [self.request], [], [self.request], 0.1
-        )
+        ready_to_read, _, in_error = select.select([self.request], [], [self.request], 0.1)
 
         if in_error:
             raise self.Disconnect()
@@ -326,9 +311,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             handler = getattr(self, f"handle_{msg.command.lower()}", None)
             if not handler:
                 log.debug(
-                    'No handler for command "%s" (client %s)',
-                    msg.command,
-                    self.internal_ident,
+                    'No handler for command "%s" (client %s)', msg.command, self.internal_ident,
                 )
                 raise IRCError(ERR.UNKNOWNCOMMAND, [msg.command, "Unknown command"])
             handler(msg.params)
@@ -383,9 +366,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             elif modestring == "b":
                 self.msg(RPL.ENDOFBANLIST, [target, "End of channel ban list"])
             else:
-                raise IRCError(
-                    ERR.CHANOPRIVSNEEDED, [target, "You're not a channel operator"]
-                )
+                raise IRCError(ERR.CHANOPRIVSNEEDED, [target, "You're not a channel operator"])
         else:
             # user modes
             if modestring:
@@ -483,8 +464,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         self.msg(RPL.WELCOME, "Welcome to IRCStream")
         self.msg(
-            RPL.YOURHOST,
-            f"Your host is {self.server.servername}, running version {__version__}",
+            RPL.YOURHOST, f"Your host is {self.server.servername}, running version {__version__}",
         )
         self.msg(RPL.CREATED, f"This server was created {self.server.boot_time:%c}")
         self.msg(
@@ -573,15 +553,12 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         # if a new topic was given...
         if len(params) > 1:
-            raise IRCError(
-                ERR.CHANOPRIVSNEEDED, [channel, "You're not a channel operator"]
-            )
+            raise IRCError(ERR.CHANOPRIVSNEEDED, [channel, "You're not a channel operator"])
 
         self.msg(RPL.TOPIC, [channel, f"Welcome to the {channel} stream"])
         botid = BOTNAME + "!" + BOTNAME + "@" + self.server.servername
         self.msg(
-            RPL.TOPICWHOTIME,
-            [channel, botid, str(int(self.server.boot_time.timestamp()))],
+            RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))],
         )
 
     def handle_names(self, params: List[str]) -> None:
@@ -722,9 +699,7 @@ class IRCServer(socketserver.ThreadingTCPServer):
     channels: Dict[str, IRCChannel] = {}
     clients: Set[IRCClient] = set()
 
-    def __init__(
-        self, server_address: Tuple[str, int], RequestHandlerClass: type
-    ) -> None:
+    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type) -> None:
         self.servername = "localhost"  # TODO
         self.boot_time = datetime.datetime.utcnow()
         self.channels = {}
@@ -758,12 +733,7 @@ class EchoServer(socketserver.UDPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(
-        self,
-        server_address: Tuple[str, int],
-        RequestHandlerClass: type,
-        ircserver: IRCServer,
-    ) -> None:
+    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type, ircserver: IRCServer,) -> None:
         self.irc = ircserver
         super().__init__(server_address, RequestHandlerClass)
 
@@ -777,27 +747,13 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "-a",
-        "--address",
-        dest="listen_address",
-        default="127.0.0.1",
-        help="IP on which to listen",
+        "-a", "--address", dest="listen_address", default="127.0.0.1", help="IP on which to listen",
     )
     parser.add_argument(
-        "-p",
-        "--port",
-        dest="listen_port",
-        default=6667,
-        type=int,
-        help="Port on which to listen",
+        "-p", "--port", dest="listen_port", default=6667, type=int, help="Port on which to listen",
     )
     parser.add_argument(
-        "-e",
-        "--echo-port",
-        dest="echo_port",
-        default=9390,
-        type=int,
-        help="Port on which to listen",
+        "-e", "--echo-port", dest="echo_port", default=9390, type=int, help="Port on which to listen",
     )
     parser.add_argument(
         "-l",
@@ -843,9 +799,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         irc_bind_address = options.listen_address, options.listen_port
         ircserver = IRCServer(irc_bind_address, IRCClient)
         log.info(
-            "Listening for IRC clients on [%s]:%s",
-            options.listen_address,
-            options.listen_port,
+            "Listening for IRC clients on [%s]:%s", options.listen_address, options.listen_port,
         )
         irc_thread = threading.Thread(target=ircserver.serve_forever)
         irc_thread.daemon = True
