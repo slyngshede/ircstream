@@ -15,11 +15,18 @@
 # * RFC 1459, RFC 2812
 
 # TODO:
+# - merge ircnumerics
+# - docstring, copyright, license etc.
 # - add statistics/introspection (Prometheus?)
-# - make network/botname/motd configurable
-# - logging overhaul
-#   + context with client ID?
-#   + structured logging?
+# - add configuration
+#   + self name (instead of "localhost")
+#   + network name
+#   + botname
+#   + motd
+#   + echo server etc.
+# - daemonization options
+#   + logging configuration (syslog, format/structured?, etc.)
+#   + run in the background?
 # - Kafka and/or SSE
 # - tests!
 #   + https://a3nm.net/git/irctk/about
@@ -75,7 +82,8 @@ See https://wikitech.wikimedia.org/wiki/EventStreams for details.
 """
 
 
-log = logging.getLogger("ircstream")  # pylint: disable=invalid-name
+logger = logging.getLogger("ircstream")  # pylint: disable=invalid-name
+log = logging.LoggerAdapter(logger, {"host": "", "clientid": ""})  # pylint: disable=invalid-name
 
 
 class IRCMessage:
@@ -185,10 +193,12 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def __init__(self, request: Any, client_address: Any, server: "IRCServer") -> None:
         self.host, self.hostport = client_address[:2]
-
         # trim IPv4 mapped prefix
         if self.host.startswith("::ffff:"):
             self.host = self.host[len("::ffff:") :]
+
+        context = {"host": self.host, "clientid": f"[{self.host}]:{self.hostport}"}
+        self.log = logging.LoggerAdapter(logger, context)
 
         self.buffer = b""
         self.user, self.realname, self.nick = "", "", ""
@@ -231,7 +241,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.send_queue.append(str(msg))
 
     def handle(self) -> None:
-        log.info("Client connected: [%s]:%s", self.host, self.hostport)
+        self.log.info("Client connected")
         self.buffer = b""
 
         try:
@@ -290,7 +300,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             if not line:
                 return
             self.keepalive = (datetime.datetime.utcnow(), False)
-            log.debug("<- %s: %s", self.internal_ident, line)
+            self.log.debug("<- %s", line)
             msg = IRCMessage.from_message(line)
 
             whitelisted = ("USER", "NICK", "QUIT", "PING", "PONG")
@@ -299,9 +309,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             handler = getattr(self, f"handle_{msg.command.lower()}", None)
             if not handler:
-                log.debug(
-                    'No handler for command "%s" (client %s)', msg.command, self.internal_ident,
-                )
+                self.log.debug('No handler for command "%s"', msg.command)
                 raise IRCError(ERR.UNKNOWNCOMMAND, [msg.command, "Unknown command"])
             handler(msg.params)
         except IRCError as exc:
@@ -310,14 +318,14 @@ class IRCClient(socketserver.BaseRequestHandler):
             return
         except Exception as exc:  # pylint: disable=broad-except
             self.msg("ERROR", f"Internal server error ({exc})")
-            log.exception("Internal server error: %s", exc)
+            self.log.exception("Internal server error: %s", exc)
 
     def _send(self, msg: str) -> None:
-        log.debug("-> %s: %s", self.internal_ident, msg)
+        self.log.debug("-> %s", msg)
         try:
             self.request.send(msg.encode("utf-8") + b"\r\n")
         except UnicodeEncodeError as exc:
-            log.debug("Internal encoding error: %s", exc)
+            self.log.debug("Internal encoding error: %s", exc)
         except socket.error as exc:
             if exc.errno == errno.EPIPE:
                 raise self.Disconnect()
@@ -473,6 +481,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg(RPL.UMODEIS, "+i")
         self.handle_motd([])
         self.server.clients.add(self)
+        self.log.info("Client identified as %s!%s", self.nick, self.user)
 
     def handle_motd(self, params: List[str]) -> None:  # pylint: disable=unused-argument
         """Handle the MOTD command. Also called once a client first connects."""
@@ -654,9 +663,10 @@ class IRCClient(socketserver.BaseRequestHandler):
     @property
     def internal_ident(self) -> str:
         """Return the internal (non-wire-protocol) client identifier"""
+        host_port = f"[{self.host}]:{self.hostport}"
         if not (self.nick and self.user):
-            return f"unidentified/{self.host}:{self.hostport}"
-        return f"{self.nick}!{self.user}/{self.host}:{self.hostport}"
+            return f"unidentified/{host_port}"
+        return f"{self.nick}!{self.user}/{host_port}"
 
     def finish(self) -> None:
         """
@@ -664,7 +674,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         client doesn't linger around in any channel or the client list, in case
         the client didn't properly close the connection with PART and QUIT.
         """
-        log.info("Client disconnected: %s", self.internal_ident)
+        self.log.info("Client disconnected")
         for channel in self.channels.values():
             if self in channel.clients:
                 self.msg("QUIT", "EOF from client")
@@ -675,7 +685,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         except KeyError:
             # was never added, e.g. if was never identified
             pass
-        log.info("Connection finished: %s", self.internal_ident)
+        self.log.info("Connection finished")
 
     def __repr__(self) -> str:
         """Return a user-readable description of the client"""
@@ -783,17 +793,27 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def setup_logging(log_level: str) -> None:
+    """Setup logging handler and format"""
+
+    logger.setLevel(log_level)
+    stream_handler = logging.StreamHandler()
+    fmt = logging.Formatter("%(levelname)s %(clientid)s %(message)s")
+    stream_handler.setFormatter(fmt)
+    logger.addHandler(stream_handler)
+
+
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Main entry point"""
-    options = parse_args(argv)
-    logging.basicConfig(level=getattr(logging, options.log_level))
 
-    log.info("Starting IRCStream")
+    options = parse_args(argv)
+    setup_logging(options.log_level)
+    log.warning("Starting IRCStream")
 
     try:
         irc_bind_address = options.listen_address, options.listen_port
         ircserver = IRCServer(irc_bind_address, IRCClient)
-        log.info(
+        log.warning(
             "Listening for IRC clients on [%s]:%s", options.listen_address, options.listen_port,
         )
         irc_thread = threading.Thread(target=ircserver.serve_forever)
@@ -802,7 +822,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
         echo_bind_address = "", options.echo_port
         echoserver = EchoServer(echo_bind_address, EchoHandler, ircserver)
-        log.info("Listening for Echo on port %s", options.echo_port)
+        log.warning("Listening for Echo on port %s", options.echo_port)
 
         echo_thread = threading.Thread(target=echoserver.serve_forever)
         echo_thread.daemon = True
