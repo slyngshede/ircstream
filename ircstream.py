@@ -415,7 +415,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick):
             raise IRCError(ERR.ERRONEUSNICKNAME, [nick, "Erroneus nickname"])
 
-        if not self.has_nick:
+        if not (self.has_nick and self.has_user):
             self.has_nick = True
             self.nick = nick
             if self.has_nick and self.has_user:
