@@ -132,9 +132,7 @@ class IRCMessage:
         return cls(command, params, source)
 
     def __str__(self) -> str:
-        """
-        Generate an RFC-compliant formatted string for the instance.
-        """
+        """Generate an RFC-compliant formatted string for the instance"""
         components = []
 
         if self.source:
@@ -161,10 +159,7 @@ class IRCMessage:
 
 
 class IRCError(Exception):
-    """
-    Exception thrown by IRC command handlers to notify client of a
-    server/client error.
-    """
+    """Exception thrown by IRC command handlers to notify client of a server/client error"""
 
     def __init__(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
         super().__init__()
@@ -173,9 +168,7 @@ class IRCError(Exception):
 
 
 class IRCChannel:  # pylint: disable=too-few-public-methods
-    """
-    An IRC channel.
-    """
+    """An IRC channel"""
 
     def __init__(self, name: str, topic: str = "No topic") -> None:
         self.name = name
@@ -212,7 +205,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         super().__init__(request, client_address, server)  # type: ignore
 
-    def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str], sync: bool = False,) -> None:
+    def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str], sync: bool = False) -> None:
         """
         Prepare and queue a response to the client.
 
@@ -255,9 +248,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.request.close()
 
     def _handle_one(self) -> None:
-        """
-        Handle one read/write cycle.
-        """
+        """Handle one read/write cycle."""
         ready_to_read, _, in_error = select.select([self.request], [], [self.request], 0.1)
 
         if in_error:
@@ -602,9 +593,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 self.msg(ERR.NOSUCHNICK, [target, "No such nick/channel"])
 
     def handle_part(self, params: List[str]) -> None:
-        """
-        Handle the PART command.
-        """
+        """Handle the PART command"""
         try:
             channels = params[0]
         except IndexError:
@@ -622,9 +611,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 self.msg(ERR.NOTONCHANNEL, [channel, "You're not on that channel"])
 
     def handle_list(self, params: List[str]) -> None:
-        """
-        Handle the LIST command.
-        """
+        """Handle the LIST command"""
         channels: Iterable[str]
         try:
             given_channels = params[0]
@@ -637,9 +624,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg(RPL.LISTEND, "End of /LIST")
 
     def handle_quit(self, params: List[str]) -> None:
-        """
-        Handle the client breaking off the connection with a QUIT command.
-        """
+        """Handle the client breaking off the connection with a QUIT command"""
         # Remove the user from the channels.
         for channel in self.channels.values():
             channel.clients.remove(self)
@@ -654,18 +639,14 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     @property
     def client_ident(self) -> str:
-        """
-        Return the client identifier as included in many command replies.
-        """
+        """Return the client identifier as included in many command replies"""
         if not (self.has_nick and self.has_user):
             raise IRCError(ERR.NOTREGISTERED, "You have not registered")
         return f"{self.nick}!{self.user}@{self.server.servername}"
 
     @property
     def internal_ident(self) -> str:
-        """
-        Return the internal (non-wire-protocol) client identifier
-        """
+        """Return the internal (non-wire-protocol) client identifier"""
         if not (self.has_nick and self.has_user):
             return f"unidentified/{self.host[0]}:{self.host[1]}"
         return f"{self.nick}!{self.user}/{self.host[0]}:{self.host[1]}"
@@ -690,16 +671,12 @@ class IRCClient(socketserver.BaseRequestHandler):
         log.info("Connection finished: %s", self.internal_ident)
 
     def __repr__(self) -> str:
-        """
-        Return a user-readable description of the client
-        """
+        """Return a user-readable description of the client"""
         return f"<{self.__class__.__name__} {self.internal_ident} {self.realname}>"
 
 
 class IRCServer(socketserver.ThreadingTCPServer):
-    """
-    A socketserver TCPServer instance representing an IRC server.
-    """
+    """A socketserver TCPServer instance representing an IRC server"""
 
     daemon_threads = True
     allow_reuse_address = True
@@ -732,20 +709,38 @@ class IRCServer(socketserver.ThreadingTCPServer):
 
 
 class EchoServer(socketserver.UDPServer):
-    """
-    A socketserver implementing the Echo protocol, as used by MediaWiki.
-    """
+    """A socketserver implementing the Echo protocol, as used by MediaWiki"""
 
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type, ircserver: IRCServer,) -> None:
+    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type, ircserver: IRCServer) -> None:
         self.irc = ircserver
         super().__init__(server_address, RequestHandlerClass)
 
 
+class EchoHandler(socketserver.BaseRequestHandler):
+    """A socketserver handler implementing the Echo protocol, as used by MediaWiki"""
+
+    server: EchoServer
+
+    def handle(self) -> None:
+        data = self.request[0]
+        try:
+            data = data.decode("utf-8")
+            channel, text = data.split("\t", maxsplit=1)
+            channel = channel.strip()
+            text = text.lstrip().replace("\r", "").replace("\n", "")
+        except Exception:  # pylint: disable=broad-except
+            return
+
+        log.debug("Broadcasting to %s: %s", channel, text)
+        self.server.irc.broadcast(channel, text)
+
+
 def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     """Parse and return the parsed command line arguments."""
+
     parser = argparse.ArgumentParser(
         prog="ircstream",
         description="EventStream IRC interface",
@@ -771,27 +766,6 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     )
 
     return parser.parse_args(argv)
-
-
-class EchoHandler(socketserver.BaseRequestHandler):
-    """
-    A socketserver handler implementing the Echo protocol, as used by MediaWiki.
-    """
-
-    server: EchoServer
-
-    def handle(self) -> None:
-        data = self.request[0]
-        try:
-            data = data.decode("utf-8")
-            channel, text = data.split("\t", maxsplit=1)
-            channel = channel.strip()
-            text = text.lstrip().replace("\r", "").replace("\n", "")
-        except Exception:  # pylint: disable=broad-except
-            return
-
-        log.debug("Broadcasting to %s: %s", channel, text)
-        self.server.irc.broadcast(channel, text)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
