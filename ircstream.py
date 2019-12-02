@@ -15,7 +15,6 @@
 # * RFC 1459, RFC 2812
 
 # TODO:
-# - merge ircnumerics
 # - docstring, copyright, license etc.
 # - add statistics/introspection (Prometheus?)
 # - add configuration
@@ -34,6 +33,7 @@
 
 import argparse
 import datetime
+import enum
 import errno
 import logging
 import re
@@ -52,8 +52,6 @@ from typing import (
     Tuple,
     Union,
 )
-
-from ircnumeric import IRCNumeric, RPL, ERR
 
 __version__ = "0.1"
 
@@ -84,6 +82,62 @@ See https://wikitech.wikimedia.org/wiki/EventStreams for details.
 
 logger = logging.getLogger("ircstream")  # pylint: disable=invalid-name
 log = logging.LoggerAdapter(logger, {"host": "", "clientid": ""})  # pylint: disable=invalid-name
+
+
+class IRCNumeric(enum.Enum):
+    """Base class for IRC numeric enums"""
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}_{self.name}"
+
+
+class RPL(IRCNumeric):
+    """Standard IRC RPL_* replies, as defined in RFCs"""
+
+    WELCOME = "001"
+    YOURHOST = "002"
+    CREATED = "003"
+    MYINFO = "004"
+    ISUPPORT = "005"
+    UMODEIS = "221"
+    WHOISUSER = "311"
+    WHOISSERVER = "312"
+    ENDOFWHO = "315"
+    WHOISIDLE = "317"
+    ENDOFWHOIS = "318"
+    LIST = "322"
+    LISTEND = "323"
+    CHANNELMODEIS = "324"
+    TOPIC = "332"
+    TOPICWHOTIME = "333"
+    NAMREPLY = "353"
+    ENDOFNAMES = "366"
+    ENDOFBANLIST = "368"
+    MOTD = "372"
+    MOTDSTART = "375"
+    ENDOFMOTD = "376"
+
+
+class ERR(IRCNumeric):
+    """Erroneous IRC ERR_* replies, as defined in RFCs"""
+
+    NOSUCHNICK = "401"
+    NOSUCHCHANNEL = "403"
+    CANNOTSENDTOCHAN = "404"
+    NOORIGIN = "409"
+    UNKNOWNCOMMAND = "421"
+    NONICKNAMEGIVEN = "431"
+    ERRONEUSNICKNAME = "432"
+    NOTONCHANNEL = "442"
+    NOTREGISTERED = "451"
+    NEEDMOREPARAMS = "461"
+    ALREADYREGISTERED = "462"
+    CHANOPRIVSNEEDED = "482"
+    UMODEUNKNOWNFLAG = "501"
+    USERSDONTMATCH = "502"
 
 
 class IRCMessage:
