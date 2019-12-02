@@ -15,8 +15,6 @@
 # * RFC 1459, RFC 2812
 
 # TODO:
-# - add PINGs
-# - add a timeout if you're not part of any channels
 # - add statistics/introspection (Prometheus?)
 # - make network/botname/motd configurable
 # - logging overhaul
@@ -195,6 +193,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.buffer = b""
         self.user, self.realname, self.nick = "nouser", "noname", "nonick"
         self.has_user, self.has_nick = False, False
+        self.keepalive = (datetime.datetime.utcnow(), False)  # (last_heard, ping_sent)
         self.send_queue: List[str] = []
         self.channels: Dict[str, IRCChannel] = {}
 
@@ -212,7 +211,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         if isinstance(params, str):
             params = [params]
 
-        if command == "ERROR":
+        if command in ("PING", "ERROR"):
             source = None
         elif isinstance(command, (RPL, ERR)) or command == "PONG":
             source = self.server.servername
@@ -249,12 +248,23 @@ class IRCClient(socketserver.BaseRequestHandler):
         if in_error:
             raise self.Disconnect()
 
-        # Write any commands to the client
+        timeout = 60
+        # if we haven't heard in N seconds, disconnect
+        delta = datetime.datetime.utcnow() - self.keepalive[0]
+        if delta > datetime.timedelta(seconds=timeout):
+            raise self.Disconnect()
+
+        # if we haven't heard in N/4 seconds, send a PING
+        if delta > datetime.timedelta(seconds=timeout / 4) and not self.keepalive[1]:
+            self.msg("PING", self.server.servername)
+            self.keepalive = (self.keepalive[0], True)
+
+        # write any commands to the client
         while self.send_queue:
             msg = self.send_queue.pop(0)
             self._send(msg)
 
-        # See if the client has any commands for us.
+        # see if the client has any commands for us
         if ready_to_read:
             self._handle_incoming()
 
@@ -280,10 +290,11 @@ class IRCClient(socketserver.BaseRequestHandler):
             # ignore empty lines
             if not line:
                 return
+            self.keepalive = (datetime.datetime.utcnow(), False)
             log.debug("<- %s: %s", self.internal_ident, line)
             msg = IRCMessage.from_message(line)
 
-            whitelisted = ("USER", "NICK", "QUIT", "PING")
+            whitelisted = ("USER", "NICK", "QUIT", "PING", "PONG")
             if not (self.has_nick and self.has_user) and msg.command not in whitelisted:
                 raise IRCError(ERR.NOTREGISTERED, "You have not registered")
 
@@ -487,6 +498,11 @@ class IRCClient(socketserver.BaseRequestHandler):
             destination = self.server.servername
 
         self.msg("PONG", [destination, origin])
+
+    def handle_pong(self, params: List[str]) -> None:
+        """
+        Handle client PONG responses to keep the connection alive.
+        """
 
     def handle_join(self, params: List[str]) -> None:
         """
