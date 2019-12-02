@@ -15,23 +15,17 @@
 # * RFC 1459, RFC 2812
 
 # TODO:
-# - handle LIST
-# =================
-# - IPv6 support
-# =================
-# - logging overhaul
-#   + context with client ID?
-#   + structured logging?
-# =================
 # - add PINGs
 # - add a timeout if you're not part of any channels
 # - add statistics/introspection (Prometheus?)
+# - make network/botname/motd configurable
+# - logging overhaul
+#   + context with client ID?
+#   + structured logging?
+# - Kafka and/or SSE
 # - tests!
 #   + https://a3nm.net/git/irctk/about
 #   + https://github.com/DanielOaks/irc-parser-tests
-# - make network/botname/motd configurable
-# - SSL (separate port? STARTTLS? STS?)
-# - Kafka and/or SSE
 
 import argparse
 import datetime
@@ -192,9 +186,13 @@ class IRCClient(socketserver.BaseRequestHandler):
         """Raised when we are about to be disconnected from the client."""
 
     def __init__(self, request: Any, client_address: Any, server: "IRCServer") -> None:
-        self.host = client_address
-        self.buffer = b""
+        self.host, self.hostport = client_address[:2]
 
+        # trim IPv4 mapped prefix
+        if self.host.startswith("::ffff:"):
+            self.host = self.host[len("::ffff:") :]
+
+        self.buffer = b""
         self.user: str = "nouser"
         self.realname: str = "noname"
         self.nick: str = "nonick"
@@ -238,7 +236,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.send_queue.append(str(msg))
 
     def handle(self) -> None:
-        log.info("Client connected: [%s]:%s", *self.host[:2])
+        log.info("Client connected: [%s]:%s", self.host, self.hostport)
         self.buffer = b""
 
         try:
@@ -388,7 +386,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.msg(RPL.WHOISIDLE, [nick, "0", "seconds idle"])
 
         if nickmask == self.nick:
-            whois_reply(self.nick, self.user, self.host[0], self.realname)
+            whois_reply(self.nick, self.user, self.host, self.realname)
         elif nickmask == BOTNAME:
             whois_reply(BOTNAME, BOTNAME, self.server.servername, BOTNAME)
         else:
@@ -648,8 +646,8 @@ class IRCClient(socketserver.BaseRequestHandler):
     def internal_ident(self) -> str:
         """Return the internal (non-wire-protocol) client identifier"""
         if not (self.has_nick and self.has_user):
-            return f"unidentified/{self.host[0]}:{self.host[1]}"
-        return f"{self.nick}!{self.user}/{self.host[0]}:{self.host[1]}"
+            return f"unidentified/{self.host}:{self.hostport}"
+        return f"{self.nick}!{self.user}/{self.host}:{self.hostport}"
 
     def finish(self) -> None:
         """
@@ -682,12 +680,20 @@ class IRCServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
 
     def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type) -> None:
+        if ":" in server_address[0]:
+            self.address_family = socket.AF_INET6
         self.servername = "localhost"  # TODO
         self.boot_time = datetime.datetime.utcnow()
         self.channels: Dict[str, IRCChannel] = {}
         self.clients: Set[IRCClient] = set()
 
         super().__init__(server_address, RequestHandlerClass)
+
+    def server_bind(self) -> None:
+        # listen to both IPv4/IPv6 on the same socket
+        if self.address_family == socket.AF_INET6:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
+        super().server_bind()
 
     def get_channel(self, name: str) -> IRCChannel:
         """
@@ -748,7 +754,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "-a", "--address", dest="listen_address", default="127.0.0.1", help="IP on which to listen",
+        "-a", "--address", dest="listen_address", default="::", help="IP on which to listen",
     )
     parser.add_argument(
         "-p", "--port", dest="listen_port", default=6667, type=int, help="Port on which to listen",
