@@ -379,7 +379,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.log.debug("<- %s", line)
             msg = IRCMessage.from_message(line)
 
-            whitelisted = ("USER", "NICK", "QUIT", "PING", "PONG")
+            whitelisted = ("CAP", "PASS", "USER", "NICK", "QUIT", "PING", "PONG")
             if not (self.nick and self.user) and msg.command not in whitelisted:
                 raise IRCError(ERR.NOTREGISTERED, "You have not registered")
 
