@@ -354,7 +354,6 @@ class IRCClient(socketserver.BaseRequestHandler):
             # ignore empty lines
             if not line:
                 return
-            self.keepalive = (datetime.datetime.utcnow(), False)
             self.log.debug("<- %s", line)
             msg = IRCMessage.from_message(line)
 
@@ -563,6 +562,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         Handle client PONG responses to keep the connection alive.
         """
+        self.keepalive = (datetime.datetime.utcnow(), False)
 
     def handle_join(self, params: List[str]) -> None:
         """
