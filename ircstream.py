@@ -193,11 +193,8 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.host = self.host[len("::ffff:") :]
 
         self.buffer = b""
-        self.user: str = "nouser"
-        self.realname: str = "noname"
-        self.nick: str = "nonick"
-        self.has_user: bool = False
-        self.has_nick: bool = False
+        self.user, self.realname, self.nick = "nouser", "noname", "nonick"
+        self.has_user, self.has_nick = False, False
         self.send_queue: List[str] = []
         self.channels: Dict[str, IRCChannel] = {}
 
