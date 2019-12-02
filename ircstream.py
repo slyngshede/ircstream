@@ -1,35 +1,53 @@
 #!/usr/bin/env python3
+"""
+IRCStream -- Wikimedia RC->IRC gateway
 
-# Copyright © 2016-2019 Faidon Liambotis
-# Copyright © 2016-2019 Wikimedia Foundation, Inc.
-#
-# Derived work of https://github.com/jaraco/irc which is
-# Copyright © 1999-2002 Joel Rosdahl
-# Copyright © 2011-2016 Jason R. Coombs
-# Copyright © 2009 Ferry Boender
-#
-# License: MIT
+This is a simple gateway to the Wikimedia recent changes feed, using the IRC
+protocol. It was made mainly for compatibility reasons, as there are a number
+of legacy clients using this interface.
 
-# Useful references:
-# * Modern IRC Client Protocol https://modern.ircdocs.horse/
+This software presents itself as an IRC server, with limited functionality.
+Sending messages to channels or other users is not allowed. Each user is within
+their own little bubble, unable to see or interact with other connected users,
+except for the recent changes bot. Overlapping usernames are allowed.
+
+A channel is created opportunistically as users join channels, and matched
+against the feed to announce new changes. In general, the name is just the
+domain name with the .org left off. For example, the changes on the English
+Wikipedia are available at #en.wikipedia.
+"""
+
+__version__ = "0.9.0"
+__author__ = "Faidon Liambotis"
+__copyright__ = """
+Copyright © 2016-2019 Faidon Liambotis
+Copyright © 2016-2019 Wikimedia Foundation, Inc.
+Copyright © 2011-2016 Jason R. Coombs
+Copyright © 2009 Ferry Boender
+Copyright © 1999-2002 Joel Rosdahl
+"""
+__license__ = """
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY CODE, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
+# This includes some (heavily modified) code from https://github.com/jaraco/irc
+#
+# Other useful references:
 # * RFC 1459, RFC 2812
-
-# TODO:
-# - docstring, copyright, license etc.
-# - add statistics/introspection (Prometheus?)
-# - add configuration
-#   + self name (instead of "localhost")
-#   + network name
-#   + botname
-#   + motd
-#   + echo server etc.
-# - daemonization options
-#   + logging configuration (syslog, format/structured?, etc.)
-#   + run in the background?
-# - Kafka and/or SSE
-# - tests!
-#   + https://a3nm.net/git/irctk/about
-#   + https://github.com/DanielOaks/irc-parser-tests
+# * Modern IRC Client Protocol https://modern.ircdocs.horse/
+# * IRC Definition files https://defs.ircdocs.horse/defs/
 
 import argparse
 import datetime
@@ -53,8 +71,7 @@ from typing import (
     Union,
 )
 
-__version__ = "0.1"
-
+SERVERNAME = "irc.wikimedia.org"
 NETWORK = "Wikimedia"
 BOTNAME = "rc-pmtpa"
 TOPIC_TMPL = "Stream for topic {}"
@@ -756,7 +773,7 @@ class IRCServer(socketserver.ThreadingTCPServer):
     def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type) -> None:
         if ":" in server_address[0]:
             self.address_family = socket.AF_INET6
-        self.servername = "localhost"  # TODO
+        self.servername = SERVERNAME
         self.boot_time = datetime.datetime.utcnow()
         self.channels: Dict[str, IRCChannel] = {}
         self.clients: Set[IRCClient] = set()
@@ -823,7 +840,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(
         prog="ircstream",
-        description="EventStream IRC interface",
+        description="Wikimedia RC->IRC gateway",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
