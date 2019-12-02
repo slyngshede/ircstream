@@ -21,7 +21,6 @@
 # =================
 # - (reverse) ping
 # =================
-# - CHANMODES in end_registration?
 # - logging overhaul
 #   + context with client ID?
 #   + structured logging?
@@ -480,6 +479,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         Called after both USER and NICK have been given. Responds with a whole
         chain of replies, as appropriate.
         """
+        cmodes = ("b", "k", "l", "mtns")  # channel modes, types A-D
+
         self.msg(RPL.WELCOME, "Welcome to IRCStream")
         self.msg(
             RPL.YOURHOST,
@@ -487,15 +488,15 @@ class IRCClient(socketserver.BaseRequestHandler):
         )
         self.msg(RPL.CREATED, f"This server was created {self.server.boot_time:%c}")
         self.msg(
-            RPL.MYINFO, f"{self.server.servername} {__version__} i bklmtns",
+            RPL.MYINFO, f"{self.server.servername} {__version__} i {''.join(cmodes)}",
         )
         self.msg(
             RPL.ISUPPORT,
             [
                 f"NETWORK={NETWORK}",
                 "CASEMAPPING=rfc1459",
-                "CHANLIMIT=#:20000",
-                "CHANMODES=b,k,l,mtns",
+                "CHANLIMIT=#:2000",
+                f"CHANMODES={','.join(cmodes)}",
                 "CHANNELLEN=50",
                 "CHANTYPES=#",
                 "PREFIX=",
