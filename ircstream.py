@@ -71,6 +71,7 @@ from typing import (
 )
 
 import prometheus_client  # type: ignore
+import structlog  # type: ignore
 
 SERVERNAME = "irc.wikimedia.org"
 NETWORK = "Wikimedia"
@@ -99,8 +100,7 @@ See https://wikitech.wikimedia.org/wiki/EventStreams for details.
 """
 
 
-logger = logging.getLogger("ircstream")  # pylint: disable=invalid-name
-log = logging.LoggerAdapter(logger, {"host": "", "client_id": ""})  # pylint: disable=invalid-name
+log = structlog.get_logger("ircstream")  # pylint: disable=invalid-name
 
 
 class IRCNumeric(enum.Enum):
@@ -290,8 +290,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         if self.host.startswith("::ffff:"):
             self.host = self.host[len("::ffff:") :]
 
-        context = {"ip": self.host, "client_id": f"[{self.host}]:{self.port}"}
-        self.log = logging.LoggerAdapter(logger, context)
+        log.bind(ip=self.host, port=self.port)
 
         self.signon = datetime.datetime.utcnow()
         self.keepalive = (self.signon, False)  # (last_heard, ping_sent)
@@ -335,7 +334,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def handle(self) -> None:
         """Handle a new connection from a client."""
-        self.log.info("Client connected")
+        log.info("Client connected")
         self.buffer = b""
 
         try:
@@ -398,7 +397,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             # ignore empty lines
             if not line:
                 return
-            self.log.debug("<- %s", line)
+            log.debug("<-", message=line)
             msg = IRCMessage.from_message(line)
 
             whitelisted = ("CAP", "PASS", "USER", "NICK", "QUIT", "PING", "PONG")
@@ -407,7 +406,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             handler = getattr(self, f"handle_{msg.command.lower()}", None)
             if not handler:
-                self.log.debug('No handler for command "%s"', msg.command)
+                log.debug("No handler for command", command=msg.command)
                 raise IRCError(ERR.UNKNOWNCOMMAND, [msg.command, "Unknown command"])
             handler(msg.params)
         except IRCError as exc:
@@ -417,15 +416,15 @@ class IRCClient(socketserver.BaseRequestHandler):
         except Exception as exc:  # pylint: disable=broad-except
             self.server.metrics["errors"].labels("ise").inc()
             self.msg("ERROR", f"Internal server error ({exc})")
-            self.log.exception("Internal server error: %s", exc)
+            log.exception("Internal server error")
 
     def _send(self, msg: str) -> None:
         """Sends a message to a connected client."""
-        self.log.debug("-> %s", msg)
+        log.debug("->", message=msg)
         try:
             self.request.send(msg.encode("utf-8") + b"\r\n")
         except UnicodeEncodeError as exc:
-            self.log.debug("Internal encoding error: %s", exc)
+            log.debug("Internal encoding error", error=exc)
         except socket.error as exc:
             if exc.errno == errno.EPIPE:
                 raise self.Disconnect()
@@ -579,8 +578,10 @@ class IRCClient(socketserver.BaseRequestHandler):
         )
         self.msg(RPL.UMODEIS, "+i")
         self.handle_motd([])
+
         self.server.add_client(self)
-        self.log.info("Client identified as %s!%s", self.nick, self.user)
+        log.bind(client_id=self.internal_ident)
+        log.info("Client identified")
 
     def handle_motd(self, _: List[str]) -> None:
         """Handles the MOTD command."""
@@ -775,7 +776,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         channel or the client list, in case the client didn't properly close
         the connection with PART and QUIT.
         """
-        self.log.info("Client disconnected")
+        log.info("Client disconnected")
         for channel in self.channels.values():
             channel.remove_member(self)
 
@@ -784,7 +785,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         except KeyError:
             # was never added, e.g. if was never identified
             pass
-        self.log.info("Connection finished")
+        log.info("Connection finished")
 
     def __repr__(self) -> str:
         """Returns a user-readable description of the client."""
@@ -890,7 +891,7 @@ class EchoHandler(socketserver.BaseRequestHandler):
         except Exception:  # pylint: disable=broad-except
             return
 
-        log.debug("Broadcasting to %s: %s", channel, text)
+        log.debug("Broadcasting message", channel=channel, message=text)
         self.server.irc.broadcast(channel, text)
 
 
@@ -909,42 +910,56 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument("-ep", "--echo-port", dest="echo_port", default=9390, type=int, help="Port on which to listen")
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
     parser.add_argument("--log-level", dest="log_level", default="INFO", choices=log_levels, help="Set log level")
+    log_formats = ("plain", "json")
+    parser.add_argument("--log-format", dest="log_format", default="plain", choices=log_formats, help="Set log format")
 
     return parser.parse_args(argv)
 
 
-def setup_logging(log_level: str) -> None:
+def setup_logging(log_level: str, log_format: str = "plain") -> None:
     """Sets up logging parameters."""
-    logger.setLevel(log_level)
-    stream_handler = logging.StreamHandler()
-    fmt = logging.Formatter("%(levelname)s %(client_id)s %(message)s")
-    stream_handler.setFormatter(fmt)
-    logger.addHandler(stream_handler)
+    logging.basicConfig(format="%(message)s", level=log_level)
+    structlog.configure(
+        context_class=structlog.threadlocal.wrap_dict(dict),
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+    )
+
+    if log_format == "json":
+        structlog.configure(
+            processors=[
+                structlog.processors.StackInfoRenderer(),
+                structlog.processors.format_exc_info,
+                structlog.processors.TimeStamper(fmt="iso"),
+                structlog.processors.JSONRenderer(sort_keys=True),
+            ],
+        )
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Main entry point."""
     options = parse_args(argv)
-    setup_logging(options.log_level)
+    setup_logging(options.log_level, options.log_format)
     log.warning("Starting IRCStream")
 
     try:
         irc_bind_address = options.listen_address, options.listen_port
         ircserver = IRCServer(irc_bind_address, IRCClient)
-        log.warning("Listening for IRC clients on [%s]:%s", options.listen_address, options.listen_port)
+        log.warning("Listening for IRC clients", listen_address=options.listen_address, listen_port=options.listen_port)
         irc_thread = threading.Thread(target=ircserver.serve_forever)
         irc_thread.daemon = True
         irc_thread.start()
 
         echo_bind_address = options.echo_address, options.echo_port
         echoserver = EchoServer(echo_bind_address, EchoHandler, ircserver)
-        log.warning("Listening for Echo on port [%s]:%s", options.echo_address, options.echo_port)
+        log.warning("Listening for Echo", echo_address=options.echo_address, echo_port=options.echo_port)
+
         echo_thread = threading.Thread(target=echoserver.serve_forever)
         echo_thread.daemon = True
         echo_thread.start()
 
         prometheus_client.start_http_server(options.prom_port)
-        log.warning("Exposing Prometheus metrics on port %s", options.prom_port)
+        log.warning("Exposing Prometheus metrics", prometheus_port=options.prom_port)
 
         input()
     except KeyboardInterrupt:
