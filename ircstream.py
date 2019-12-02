@@ -15,34 +15,6 @@
 # * RFC 1459, RFC 2812
 
 # TODO:
-# ----------------------------------------
-# Exception happened during processing of request from ('127.0.0.1', 43218)
-# Traceback (most recent call last):
-#   File "ircstream.py", line 227, in handle
-#   File "ircstream.py", line 250, in _handle_one
-#   File "ircstream.py", line 266, in _handle_incoming
-#     self.buffer = lines.pop()
-#   File "ircstream.py", line 287, in _handle_line
-#     self.internal_ident,
-#   File "ircstream.py", line 615, in handle_quit
-# IRCClient.Disconnect
-#
-# During handling of the above exception, another exception occurred:
-#
-# Traceback (most recent call last):
-#   File "/usr/lib/python3.7/socketserver.py", line 650, in process_request_thread
-#     self.finish_request(request, client_address)
-#   File "/usr/lib/python3.7/socketserver.py", line 360, in finish_request
-#     self.RequestHandlerClass(request, client_address, self)
-#   File "ircstream.py", line 197, in __init__
-#     self.send_queue = []  # Messages to send to client (strings)
-#   File "/usr/lib/python3.7/socketserver.py", line 720, in __init__
-#     self.handle()
-#   File "ircstream.py", line 229, in handle
-#     while True:
-# OSError: [Errno 107] Transport endpoint is not connected
-# ----------------------------------------
-# =================
 # - handle LIST
 # =================
 # - pylint!
@@ -252,7 +224,6 @@ class IRCClient(socketserver.BaseRequestHandler):
             while True:
                 self._handle_one()
         except self.Disconnect:
-            self.request.shutdown(socket.SHUT_RDWR)
             self.request.close()
 
     def _handle_one(self):
