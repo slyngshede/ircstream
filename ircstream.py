@@ -238,14 +238,34 @@ class IRCError(Exception):
         self.params = params
 
 
-class IRCChannel:  # pylint: disable=too-few-public-methods
+class IRCChannel:
     """Represents an IRC channel."""
 
-    def __init__(self, name: str, topic: str = "No topic") -> None:
+    def __init__(self, name: str) -> None:
         self.name = name
-        self.topic_by = "Unknown"
-        self.topic = topic
-        self.clients: Set[IRCClient] = set()
+        self._clients: Set[IRCClient] = set()
+        self._lock = threading.Lock()
+
+    def add_member(self, client: "IRCClient") -> None:
+        """Adds a client to the channel (race-free)."""
+        with self._lock:
+            self._clients.add(client)
+
+    def remove_member(self, client: "IRCClient") -> None:
+        """Removes a client from a channel (race-free).
+
+        No-op if they weren't there already."""
+        with self._lock:
+            try:
+                self._clients.remove(client)
+            except KeyError:
+                pass
+
+    def members(self) -> Iterable["IRCClient"]:
+        """Lists the clients in the channel."""
+        with self._lock:
+            clients = list(self._clients)
+        return clients
 
 
 class IRCClient(socketserver.BaseRequestHandler):
@@ -556,7 +576,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         )
         self.msg(RPL.UMODEIS, "+i")
         self.handle_motd([])
-        self.server.clients.add(self)
+        self.server.add_client(self)
         self.log.info("Client identified as %s!%s", self.nick, self.user)
 
     def handle_motd(self, _: List[str]) -> None:
@@ -604,7 +624,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             # add user to the channel (create new channel if not exists)
             channelobj = self.server.get_channel(channel)
-            channelobj.clients.add(self)
+            channelobj.add_member(self)
 
             # add channel to user's channel list
             self.channels[channelobj.name] = channelobj
@@ -698,7 +718,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             if channel in self.channels:
                 channelobj = self.channels.pop(channel)
-                channelobj.clients.remove(self)
+                channelobj.remove_member(self)
                 self.msg("PART", channel)
             else:
                 # don't raise IRCError because this can be one of many channels
@@ -720,7 +740,7 @@ class IRCClient(socketserver.BaseRequestHandler):
     def handle_quit(self, params: List[str]) -> None:
         """Handles the client breaking off the connection with a QUIT command."""
         for channel in self.channels.values():
-            channel.clients.remove(self)
+            channel.remove_member(self)
 
         try:
             reason = params[0]
@@ -754,12 +774,10 @@ class IRCClient(socketserver.BaseRequestHandler):
         """
         self.log.info("Client disconnected")
         for channel in self.channels.values():
-            if self in channel.clients:
-                self.msg("QUIT", "EOF from client")
-                channel.clients.remove(self)
+            channel.remove_member(self)
 
         try:
-            self.server.clients.remove(self)
+            self.server.remove_client(self)
         except KeyError:
             # was never added, e.g. if was never identified
             pass
@@ -781,8 +799,9 @@ class IRCServer(socketserver.ThreadingTCPServer):
             self.address_family = socket.AF_INET6
         self.servername = SERVERNAME
         self.boot_time = datetime.datetime.utcnow()
-        self.channels: Dict[str, IRCChannel] = {}
-        self.clients: Set[IRCClient] = set()
+        self._channels: Dict[str, IRCChannel] = {}
+        self._clients: Set[IRCClient] = set()
+        self._clients_lock = threading.Lock()
 
         super().__init__(server_address, RequestHandlerClass)
 
@@ -796,11 +815,22 @@ class IRCServer(socketserver.ThreadingTCPServer):
         super().server_bind()
 
     def get_channel(self, name: str) -> IRCChannel:
-        """Returns an IRCChannel instance for the given channel name
+        """Returns an IRCChannel instance for the given channel name.
 
-        Creates one if necessary.
+        Creates one if necessary, in a race-free way.
         """
-        return self.channels.setdefault(name, IRCChannel(name))
+        # setdefault() is thread-safe, cf. issue 13521
+        return self._channels.setdefault(name, IRCChannel(name))
+
+    def add_client(self, client: IRCClient) -> None:
+        """Adds a client to the client list (race-free)."""
+        with self._clients_lock:
+            self._clients.add(client)
+
+    def remove_client(self, client: IRCClient) -> None:
+        """Removes a client from the client list (race-free)."""
+        with self._clients_lock:
+            self._clients.remove(client)
 
     def broadcast(self, target: str, msg: str) -> None:
         """Broadcasts a message to all clients that have joined a channel.
@@ -811,7 +841,7 @@ class IRCServer(socketserver.ThreadingTCPServer):
         message = IRCMessage("PRIVMSG", [target, msg], source=botid)
 
         channel = self.get_channel(target)
-        for client in channel.clients:
+        for client in channel.members():
             try:
                 client.send_queue.append(str(message))
             except Exception:  # pylint: disable=broad-except
