@@ -857,9 +857,10 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument("-a", "--address", dest="listen_address", default="::", help="IP on which to listen")
-    parser.add_argument("-p", "--port", dest="listen_port", default=6667, type=int, help="Port on which to listen")
-    parser.add_argument("-e", "--echo-port", dest="echo_port", default=9390, type=int, help="Port on which to listen")
+    parser.add_argument("-la", "--address", dest="listen_address", default="::", help="IP on which to listen")
+    parser.add_argument("-lp", "--port", dest="listen_port", default=6667, type=int, help="Port on which to listen")
+    parser.add_argument("-ea", "--echo-address", dest="echo_address", default="0.0.0.0", help="IP on which to listen")
+    parser.add_argument("-ep", "--echo-port", dest="echo_port", default=9390, type=int, help="Port on which to listen")
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
     parser.add_argument("--log-level", dest="log_level", default="INFO", choices=log_levels, help="Set log level")
 
@@ -889,9 +890,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         irc_thread.daemon = True
         irc_thread.start()
 
-        echo_bind_address = "", options.echo_port
+        echo_bind_address = options.echo_address, options.echo_port
         echoserver = EchoServer(echo_bind_address, EchoHandler, ircserver)
-        log.warning("Listening for Echo on port %s", options.echo_port)
+        log.warning("Listening for Echo on port [%s]:%s", options.echo_address, options.echo_port)
 
         echo_thread = threading.Thread(target=echoserver.serve_forever)
         echo_thread.daemon = True
