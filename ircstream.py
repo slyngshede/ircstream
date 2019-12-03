@@ -802,15 +802,36 @@ class IRCClient(socketserver.BaseRequestHandler):
         return f"<{self.__class__.__name__} {self.internal_ident}>"
 
 
-class IRCServer(socketserver.ThreadingTCPServer):
+class DualstackServerMixIn(socketserver.BaseServer):
+    """BaseServer mix-in to support dual-stack servers.
+
+    This forces AF_INET6 allowing addresses from both families to be given.  It
+    also setsockopts(IPV6_V6ONLY, 0), essentially allowing an address of :: to
+    capture both IPv4/IPv6 traffic with just one socket.
+    """
+
+    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type) -> None:
+        if ":" in server_address[0]:
+            self.address_family = socket.AF_INET6
+        super().__init__(server_address, RequestHandlerClass)
+
+    def server_bind(self) -> None:
+        """Binds to an IP address.
+
+        Override to set an opt to listen to both IPv4/IPv6 on the same socket.
+        """
+        if self.address_family == socket.AF_INET6:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
+class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
     """A socketserver TCPServer instance representing an IRC server."""
 
     daemon_threads = True
     allow_reuse_address = True
 
     def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type) -> None:
-        if ":" in server_address[0]:
-            self.address_family = socket.AF_INET6
         self.servername = SERVERNAME
         self.boot_time = datetime.datetime.utcnow()
         self._channels: Dict[str, IRCChannel] = {}
@@ -828,15 +849,6 @@ class IRCServer(socketserver.ThreadingTCPServer):
         self.metrics["channels"].set_function(lambda: len(self._channels))
 
         super().__init__(server_address, RequestHandlerClass)
-
-    def server_bind(self) -> None:
-        """Binds to an IP address.
-
-        Override to set an opt to listen to both IPv4/IPv6 on the same socket.
-        """
-        if self.address_family == socket.AF_INET6:
-            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, False)
-        super().server_bind()
 
     def get_channel(self, name: str) -> IRCChannel:
         """Returns an IRCChannel instance for the given channel name.
@@ -875,7 +887,7 @@ class IRCServer(socketserver.ThreadingTCPServer):
         self.metrics["messages"].inc()
 
 
-class EchoServer(socketserver.UDPServer):
+class EchoServer(DualstackServerMixIn, socketserver.UDPServer):
     """A socketserver implementing the Echo protocol, as used by MediaWiki"""
 
     daemon_threads = True
@@ -916,7 +928,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument("-la", "--address", dest="listen_address", default="::", help="IP on which to listen")
     parser.add_argument("-lp", "--port", dest="listen_port", default=6667, type=int, help="Port on which to listen")
     parser.add_argument("-pp", "--prom-port", dest="prom_port", default=9200, type=int, help="Port on which to listen")
-    parser.add_argument("-ea", "--echo-address", dest="echo_address", default="0.0.0.0", help="IP on which to listen")
+    parser.add_argument("-ea", "--echo-address", dest="echo_address", default="::", help="IP on which to listen")
     parser.add_argument("-ep", "--echo-port", dest="echo_port", default=9390, type=int, help="Port on which to listen")
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
     parser.add_argument("--log-level", dest="log_level", default="INFO", choices=log_levels, help="Set log level")
