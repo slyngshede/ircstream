@@ -300,7 +300,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         if self.host.startswith("::ffff:"):
             self.host = self.host[len("::ffff:") :]
 
-        log.bind(ip=self.host, port=self.port)
+        log.new(ip=self.host, port=self.port)
 
         self.signon = datetime.datetime.utcnow()
         self.keepalive = (self.signon, False)  # (last_heard, ping_sent)
@@ -929,7 +929,9 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
 def setup_logging(log_level: str, log_format: str = "plain") -> None:
     """Sets up logging parameters."""
     logging.basicConfig(format="%(message)s", level=log_level)
+    default_processors = structlog.get_config()["processors"]
     structlog.configure(
+        processors=[structlog.stdlib.add_log_level] + default_processors,
         context_class=structlog.threadlocal.wrap_dict(dict),
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
@@ -938,6 +940,7 @@ def setup_logging(log_level: str, log_format: str = "plain") -> None:
     if log_format == "json":
         structlog.configure(
             processors=[
+                structlog.stdlib.add_log_level,
                 structlog.processors.StackInfoRenderer(),
                 structlog.processors.format_exc_info,
                 structlog.processors.TimeStamper(fmt="iso"),
@@ -969,7 +972,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         echo_thread.start()
 
         prometheus_client.start_http_server(options.prom_port)
-        log.warning("Exposing Prometheus metrics", prometheus_port=options.prom_port)
+        log.warning("Listening to HTTP (Prometheus)", prometheus_port=options.prom_port)
 
         input()
     except KeyboardInterrupt:
