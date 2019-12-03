@@ -13,10 +13,10 @@ etc.  The sole exception is a (fake) bot user, that emits the recent changes
 feed, and is also embedded in this program.
 
 Channels are created opportunistically, as users join channels and/or messages
-for those appear in the recent changes feed. In general, the name is just the
-domain name with the .org left off. For example, the changes on the English
-Wikipedia are available at #en.wikipedia.
+for those appear in the recent changes feed.
 """
+
+from __future__ import annotations
 
 __version__ = "0.9.0"
 __author__ = "Faidon Liambotis"
@@ -184,7 +184,7 @@ class IRCMessage:
         self.source = source
 
     @classmethod
-    def from_message(cls, message: str) -> "IRCMessage":
+    def from_message(cls, message: str) -> IRCMessage:
         """Parses a previously formatted IRC message.
 
         Returns an instance of IRCMessage, that one can query for self.command
@@ -260,12 +260,12 @@ class IRCChannel:
         self._clients: Set[IRCClient] = set()
         self._lock = threading.Lock()
 
-    def add_member(self, client: "IRCClient") -> None:
+    def add_member(self, client: IRCClient) -> None:
         """Adds a client to the channel (race-free)."""
         with self._lock:
             self._clients.add(client)
 
-    def remove_member(self, client: "IRCClient") -> None:
+    def remove_member(self, client: IRCClient) -> None:
         """Removes a client from a channel (race-free).
 
         No-op if they weren't there already."""
@@ -275,7 +275,7 @@ class IRCChannel:
             except KeyError:
                 pass
 
-    def members(self) -> Iterable["IRCClient"]:
+    def members(self) -> Iterable[IRCClient]:
         """Lists the clients in the channel."""
         with self._lock:
             clients = list(self._clients)
@@ -291,12 +291,12 @@ class IRCClient(socketserver.BaseRequestHandler):
     the client by dispatching them to the ``handle_`` methods.
     """
 
-    server: "IRCServer"
+    server: IRCServer
 
     class Disconnect(BaseException):
         """Raised when we are about to be disconnected from the client."""
 
-    def __init__(self, request: Any, client_address: Any, server: "IRCServer") -> None:
+    def __init__(self, request: Any, client_address: Any, server: IRCServer) -> None:
         self.host, self.port = client_address[:2]
         # trim IPv4 mapped prefix
         if self.host.startswith("::ffff:"):
