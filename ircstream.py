@@ -421,7 +421,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
             handler = getattr(self, f"handle_{msg.command.lower()}", None)
             if not handler:
-                log.debug("No handler for command", command=msg.command)
+                log.info("No handler for command", command=msg.command, params=msg.params)
                 raise IRCError(ERR.UNKNOWNCOMMAND, [msg.command, "Unknown command"])
             handler(msg.params)
         except IRCError as exc:
@@ -446,8 +446,10 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise
 
     def handle_cap(self, params: List[str]) -> None:  # pylint: disable=no-self-use
-        """Stub for the CAP (capability) command."""
-        raise IRCError(ERR.UNKNOWNCOMMAND, ["CAP", "Unknown command"])
+        """Stub for the CAP (capability) command.
+
+        Ignore and do not send unknown command, per IRC v3.1/v3.2.
+        """
 
     def handle_who(self, params: List[str]) -> None:
         """Stub for the WHO command."""
