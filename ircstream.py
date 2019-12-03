@@ -191,7 +191,8 @@ class IRCMessage:
         params = []
 
         while original_params:
-            # skip multiple spaces in middle of message, as per 1459
+            # pylint: disable=no-else-continue,no-else-break
+            # skip multiple spaces in middle of message, as per RFC 1459
             if original_params[0] == "" and len(original_params) > 1:
                 original_params.pop(0)
                 continue
