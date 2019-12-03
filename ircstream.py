@@ -70,6 +70,8 @@ from typing import (
     Union,
 )
 
+import prometheus_client  # type: ignore
+
 SERVERNAME = "irc.wikimedia.org"
 NETWORK = "Wikimedia"
 BOTNAME = "rc-pmtpa"
@@ -413,6 +415,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         except UnicodeDecodeError:
             return
         except Exception as exc:  # pylint: disable=broad-except
+            self.server.metrics["errors"].labels("ise").inc()
             self.msg("ERROR", f"Internal server error ({exc})")
             self.log.exception("Internal server error: %s", exc)
 
@@ -803,6 +806,16 @@ class IRCServer(socketserver.ThreadingTCPServer):
         self._clients: Set[IRCClient] = set()
         self._clients_lock = threading.Lock()
 
+        # set up a few Prometheus metrics
+        self.metrics = {
+            "clients": prometheus_client.Gauge("ircstream_clients", "Number of IRC clients"),
+            "channels": prometheus_client.Gauge("ircstream_channels", "Number of IRC channels"),
+            "messages": prometheus_client.Counter("ircstream_messages", "Count of RC messages broadcasted"),
+            "errors": prometheus_client.Counter("ircstream_errors", "Count of errors and exceptions", ["type"]),
+        }
+        self.metrics["clients"].set_function(lambda: len(self._clients))
+        self.metrics["channels"].set_function(lambda: len(self._channels))
+
         super().__init__(server_address, RequestHandlerClass)
 
     def server_bind(self) -> None:
@@ -845,8 +858,10 @@ class IRCServer(socketserver.ThreadingTCPServer):
             try:
                 client.send_queue.append(str(message))
             except Exception:  # pylint: disable=broad-except
+                self.metrics["errors"].labels("broadcast").inc()
                 # ignore exceptions, to catch races and other corner cases
                 continue
+        self.metrics["messages"].inc()
 
 
 class EchoServer(socketserver.UDPServer):
@@ -889,6 +904,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
 
     parser.add_argument("-la", "--address", dest="listen_address", default="::", help="IP on which to listen")
     parser.add_argument("-lp", "--port", dest="listen_port", default=6667, type=int, help="Port on which to listen")
+    parser.add_argument("-pp", "--prom-port", dest="prom_port", default=9200, type=int, help="Port on which to listen")
     parser.add_argument("-ea", "--echo-address", dest="echo_address", default="0.0.0.0", help="IP on which to listen")
     parser.add_argument("-ep", "--echo-port", dest="echo_port", default=9390, type=int, help="Port on which to listen")
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
@@ -923,10 +939,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         echo_bind_address = options.echo_address, options.echo_port
         echoserver = EchoServer(echo_bind_address, EchoHandler, ircserver)
         log.warning("Listening for Echo on port [%s]:%s", options.echo_address, options.echo_port)
-
         echo_thread = threading.Thread(target=echoserver.serve_forever)
         echo_thread.daemon = True
         echo_thread.start()
+
+        prometheus_client.start_http_server(options.prom_port)
+        log.warning("Exposing Prometheus metrics on port %s", options.prom_port)
 
         input()
     except KeyboardInterrupt:
