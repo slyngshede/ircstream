@@ -670,9 +670,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         self.msg(RPL.TOPIC, [channel, TOPIC_TMPL.format(channel)])
         botid = BOTNAME + "!" + BOTNAME + "@" + self.server.servername
-        self.msg(
-            RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))],
-        )
+        self.msg(RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))])
 
     def handle_names(self, params: List[str]) -> None:
         """Handles the NAMES command.
