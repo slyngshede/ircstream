@@ -21,9 +21,6 @@ __author__ = "Faidon Liambotis"
 __copyright__ = """
 Copyright © 2016-2019 Faidon Liambotis
 Copyright © 2016-2019 Wikimedia Foundation, Inc.
-Copyright © 2011-2016 Jason R. Coombs
-Copyright © 2009 Ferry Boender
-Copyright © 1999-2002 Joel Rosdahl
 """
 __license__ = """
 SPDX-License-Identifier: Apache-2.0
@@ -41,7 +38,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-# This includes some (heavily modified) code from https://github.com/jaraco/irc
+# This software includes (heavily modified) code from https://github.com/jaraco/irc, which is:
+#   Copyright © 2011-2016 Jason R. Coombs
+#   Copyright © 2009 Ferry Boender
+#   Copyright © 1999-2002 Joel Rosdahl
+# and licensed under the MIT license.
+#
+# The IRCMessage parser is based on RFC1459Message from girc that is:
+#   Copyright © 2014 William Pitcock <nenolod@dereferenced.org>
+# and licensed under the ISC license.
 #
 # Other useful references:
 # * RFC 1459, RFC 2812
@@ -107,12 +112,15 @@ class IRCNumeric(enum.Enum):
     """Base class for IRC numeric enums"""
 
     def __str__(self) -> str:
-        return str(self.value)
+        """Returns the numeric in the wire protocol format, e.g. 001."""
+        return str(self.value).zfill(3)
 
     def __repr__(self) -> str:
+        """Returns the representation of the numeric, e.g. RPL_WELCOME."""
         return f"{self.__class__.__name__}_{self.name}"
 
 
+@enum.unique
 class RPL(IRCNumeric):
     """Standard IRC RPL_* replies, as defined in RFCs"""
 
@@ -140,6 +148,7 @@ class RPL(IRCNumeric):
     ENDOFMOTD = "376"
 
 
+@enum.unique
 class ERR(IRCNumeric):
     """Erroneous IRC ERR_* replies, as defined in RFCs"""
 
@@ -790,7 +799,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def __repr__(self) -> str:
         """Returns a user-readable description of the client."""
-        return f"<{self.__class__.__name__} {self.internal_ident} {self.realname}>"
+        return f"<{self.__class__.__name__} {self.internal_ident}>"
 
 
 class IRCServer(socketserver.ThreadingTCPServer):
