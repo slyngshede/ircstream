@@ -2,16 +2,18 @@
 """IRCStream -- Wikimedia RC->IRC gateway
 
 This is a simple gateway to the Wikimedia recent changes feed, using the IRC
-protocol. It was made mainly for compatibility reasons, as there are a number
-of legacy clients using this interface.
+protocol. It was written mainly for compatibility reasons, as there are a
+number of legacy clients using this interface.
 
-This software presents itself as an IRC server, with limited functionality.
-Sending messages to channels or other users is not allowed. Each user is within
-their own little bubble, unable to see or interact with other connected users,
-except for the recent changes bot. Overlapping usernames are allowed.
+This software presents itself as an IRC server, albeit with a restricted
+command set. Sending messages to channels or other clients is not allowed. Each
+client is within a private namespace, unable to view messages or interact with
+other connected clients. These are not even viewable on channel lists, /who
+etc.  The sole exception is a (fake) bot user, that emits the recent changes
+feed, and is also embedded in this program.
 
-A channel is created opportunistically as users join channels, and matched
-against the feed to announce new changes. In general, the name is just the
+Channels are created opportunistically, as users join channels and/or messages
+for those appear in the recent changes feed. In general, the name is just the
 domain name with the .org left off. For example, the changes on the English
 Wikipedia are available at #en.wikipedia.
 """
