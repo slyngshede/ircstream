@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""IRCStream -- Wikimedia RC->IRC gateway
+"""IRCStream -- Wikimedia RC->IRC gateway.
 
 This is a simple gateway to the Wikimedia recent changes feed, using the IRC
 protocol. It was written mainly for compatibility reasons, as there are a
@@ -77,8 +77,9 @@ from typing import (
     Union,
 )
 
-import prometheus_client  # type: ignore
-import structlog  # type: ignore
+import prometheus_client  # type: ignore  # prometheus/client_python #491
+
+import structlog  # type: ignore  # hynek/structlog #165
 
 SERVERNAME = "irc.wikimedia.org"
 NETWORK = "Wikimedia"
@@ -111,20 +112,20 @@ log = structlog.get_logger("ircstream")  # pylint: disable=invalid-name
 
 
 class IRCNumeric(enum.Enum):
-    """Base class for IRC numeric enums"""
+    """Base class for IRC numeric enums."""
 
     def __str__(self) -> str:
-        """Returns the numeric in the wire protocol format, e.g. 001."""
+        """Return the numeric in the wire protocol format, e.g. 001."""
         return str(self.value).zfill(3)
 
     def __repr__(self) -> str:
-        """Returns the representation of the numeric, e.g. RPL_WELCOME."""
+        """Return the representation of the numeric, e.g. RPL_WELCOME."""
         return f"{self.__class__.__name__}_{self.name}"
 
 
 @enum.unique
 class RPL(IRCNumeric):
-    """Standard IRC RPL_* replies, as defined in RFCs"""
+    """Standard IRC RPL_* replies, as defined in RFCs."""
 
     WELCOME = 1
     YOURHOST = 2
@@ -152,7 +153,7 @@ class RPL(IRCNumeric):
 
 @enum.unique
 class ERR(IRCNumeric):
-    """Erroneous IRC ERR_* replies, as defined in RFCs"""
+    """Erroneous IRC ERR_* replies, as defined in RFCs."""
 
     NOSUCHNICK = 401
     NOSUCHCHANNEL = 403
@@ -185,7 +186,7 @@ class IRCMessage:
 
     @classmethod
     def from_message(cls, message: str) -> IRCMessage:
-        """Parses a previously formatted IRC message.
+        """Parse a previously formatted IRC message.
 
         Returns an instance of IRCMessage, that one can query for self.command
         and self.params.
@@ -217,7 +218,7 @@ class IRCMessage:
         return cls(command, params, source)
 
     def __str__(self) -> str:
-        """Generates an RFC-compliant formatted string for the instance."""
+        """Generate an RFC-compliant formatted string for the instance."""
         components = []
 
         if self.source:
@@ -240,6 +241,7 @@ class IRCMessage:
         return " ".join(components)
 
     def __repr__(self) -> str:
+        """Represent an IRCMessage; mainly used for debugging."""
         return '<IRCMessage: "{0}">'.format(self.command)
 
 
@@ -261,14 +263,15 @@ class IRCChannel:
         self._lock = threading.Lock()
 
     def add_member(self, client: IRCClient) -> None:
-        """Adds a client to the channel (race-free)."""
+        """Add a client to the channel (race-free)."""
         with self._lock:
             self._clients.add(client)
 
     def remove_member(self, client: IRCClient) -> None:
-        """Removes a client from a channel (race-free).
+        """Remove a client from a channel (race-free).
 
-        No-op if they weren't there already."""
+        No-op if they weren't there already.
+        """
         with self._lock:
             try:
                 self._clients.remove(client)
@@ -276,7 +279,7 @@ class IRCChannel:
                 pass
 
     def members(self) -> Iterable[IRCClient]:
-        """Lists the clients in the channel."""
+        """List the clients in the channel."""
         with self._lock:
             clients = list(self._clients)
         return clients
@@ -311,10 +314,10 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.send_queue: List[str] = []
         self.channels: Dict[str, IRCChannel] = {}
 
-        super().__init__(request, client_address, server)  # type: ignore
+        super().__init__(request, client_address, server)  # type: ignore  # python/typeshed #3523
 
     def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str], sync: bool = False) -> None:
-        """Prepares and queues a response to the client.
+        """Prepare and queues a response to the client.
 
         This generally does the right thing, and reduces boilerplate by
           * using the correct source depending on the command;
@@ -356,7 +359,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.request.close()
 
     def _handle_one(self) -> None:
-        """Handles one read/write cycle."""
+        """Handle one read/write cycle."""
         ready_to_read, _, in_error = select.select([self.request], [], [self.request], 0.1)
 
         if in_error:
@@ -383,7 +386,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self._handle_incoming()
 
     def _handle_incoming(self) -> None:
-        """Receives data from a client.
+        """Receive data from a client.
 
         Splits into multiple lines, and call _handle_line() for each.
         """
@@ -403,7 +406,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self._handle_line(line)
 
     def _handle_line(self, bline: bytes) -> None:
-        """Handles a single line of input (i.e. a command and arguments)."""
+        """Handle a single line of input (i.e. a command and arguments)."""
         try:
             line = bline.decode("utf-8").strip()
             # ignore empty lines
@@ -431,7 +434,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             log.exception("Internal server error")
 
     def _send(self, msg: str) -> None:
-        """Sends a message to a connected client."""
+        """Send a message to a connected client."""
         log.debug("->", message=msg)
         try:
             self.request.send(msg.encode("utf-8") + b"\r\n")
@@ -455,7 +458,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg(RPL.ENDOFWHO, [mask, "End of /WHO list."])
 
     def handle_mode(self, params: List[str]) -> None:
-        """Handles the MODE command, for both channel and user modes."""
+        """Handle the MODE command, for both channel and user modes."""
         try:
             target = params[0]
         except IndexError:
@@ -489,7 +492,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 raise IRCError(ERR.NOSUCHNICK, [target, "No such nick/channel"])
 
     def handle_whois(self, params: List[str]) -> None:
-        """Handles the WHOIS command."""
+        """Handle the WHOIS command."""
         if len(params) == 2:
             nicklist = params[1]
         elif len(params) == 1:
@@ -522,7 +525,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg(RPL.ENDOFWHOIS, [nicklist, "End of /WHOIS list"])
 
     def handle_nick(self, params: List[str]) -> None:
-        """Handles the initial setting of the user's nickname and nick changes."""
+        """Handle the initial setting of the user's nickname and nick changes."""
         try:
             nick = params[0]
         except IndexError:
@@ -542,7 +545,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.nick = nick
 
     def handle_user(self, params: List[str]) -> None:
-        """Handles the USER command which identifies the user to the server."""
+        """Handle the USER command which identifies the user to the server."""
         try:
             user, _, _, realname = params[:4]
         except ValueError:
@@ -559,7 +562,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.end_registration()
 
     def end_registration(self) -> None:
-        """Ends the registration process.
+        """End the registration process.
 
         Called after both USER and NICK have been given. Responds with a whole
         chain of replies, as appropriate.
@@ -596,14 +599,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         log.info("Client identified")
 
     def handle_motd(self, _: List[str]) -> None:
-        """Handles the MOTD command."""
+        """Handle the MOTD command."""
         self.msg(RPL.MOTDSTART, "- Message of the day -")
         for line in SRV_WELCOME.strip().split("\n"):
             self.msg(RPL.MOTD, "- " + line)
         self.msg(RPL.ENDOFMOTD, "End of /MOTD command.")
 
     def handle_ping(self, params: List[str]) -> None:
-        """Handles client PING requests to keep the connection alive."""
+        """Handle client PING requests to keep the connection alive."""
         try:
             origin = params[0]
         except IndexError:
@@ -617,15 +620,11 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg("PONG", [destination, origin])
 
     def handle_pong(self, _: List[str]) -> None:
-        """Handles client PONG responses to keep the connection alive."""
+        """Handle client PONG responses to keep the connection alive."""
         self.keepalive = (datetime.datetime.utcnow(), False)
 
     def handle_join(self, params: List[str]) -> None:
-        """Handles the JOIN command.
-
-        Valid channel names start with a # and consist of a-z, A-Z, 0-9 and/or
-        '_' and '.'.
-        """
+        """Handle the JOIN command."""
         try:
             channels = params[0]  # ignore param 1, i.e. channel keys
         except IndexError:
@@ -651,7 +650,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.handle_names([channel])
 
     def handle_topic(self, params: List[str]) -> None:
-        """Handles the TOPIC command.
+        """Handle the TOPIC command.
 
         Shows a hardcoded topic message when asked for one, and always deny
         setting the topic, as this is not supported.
@@ -673,7 +672,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg(RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))])
 
     def handle_names(self, params: List[str]) -> None:
-        """Handles the NAMES command.
+        """Handle the NAMES command.
 
         Every channel has the "bot" connected, plus, optionally, the connecting
         client.
@@ -697,7 +696,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg(RPL.ENDOFNAMES, [channel, "End of /NAMES list"])
 
     def handle_privmsg(self, params: List[str]) -> None:
-        """Handles the PRIVMSG command, sending a message to a user or channel.
+        """Handle the PRIVMSG command, sending a message to a user or channel.
 
         No-op in our case, as we only allow the bot to message users.
         """
@@ -721,7 +720,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 self.msg(ERR.NOSUCHNICK, [target, "No such nick/channel"])
 
     def handle_part(self, params: List[str]) -> None:
-        """Handles the PART command."""
+        """Handle the PART command."""
         try:
             channels = params[0]
         except IndexError:
@@ -739,7 +738,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 self.msg(ERR.NOTONCHANNEL, [channel, "You're not on that channel"])
 
     def handle_list(self, params: List[str]) -> None:
-        """Handles the LIST command."""
+        """Handle the LIST command."""
         channels: Iterable[str]
         try:
             given_channels = params[0]
@@ -752,7 +751,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg(RPL.LISTEND, "End of /LIST")
 
     def handle_quit(self, params: List[str]) -> None:
-        """Handles the client breaking off the connection with a QUIT command."""
+        """Handle the client breaking off the connection with a QUIT command."""
         for channel in self.channels.values():
             channel.remove_member(self)
 
@@ -766,21 +765,21 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     @property
     def client_ident(self) -> str:
-        """Returns the client identifier as included in many command replies."""
+        """Return the client identifier as included in many command replies."""
         if not (self.nick and self.user):
             raise IRCError(ERR.NOTREGISTERED, "You have not registered")
         return f"{self.nick}!{self.user}@{self.server.servername}"
 
     @property
     def internal_ident(self) -> str:
-        """Returns the internal (non-wire-protocol) client identifier."""
+        """Return the internal (non-wire-protocol) client identifier."""
         host_port = f"[{self.host}]:{self.port}"
         if not (self.nick and self.user):
             return f"unidentified/{host_port}"
         return f"{self.nick}!{self.user}/{host_port}"
 
     def finish(self) -> None:
-        """Finishes the client connection.
+        """Finish the client connection.
 
         Do some cleanup to ensure that the client doesn't linger around in any
         channel or the client list, in case the client didn't properly close
@@ -798,7 +797,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         log.info("Connection finished")
 
     def __repr__(self) -> str:
-        """Returns a user-readable description of the client."""
+        """Return a user-readable description of the client."""
         return f"<{self.__class__.__name__} {self.internal_ident}>"
 
 
@@ -816,7 +815,7 @@ class DualstackServerMixIn(socketserver.BaseServer):
         super().__init__(server_address, RequestHandlerClass)
 
     def server_bind(self) -> None:
-        """Binds to an IP address.
+        """Bind to an IP address.
 
         Override to set an opt to listen to both IPv4/IPv6 on the same socket.
         """
@@ -851,7 +850,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         super().__init__(server_address, RequestHandlerClass)
 
     def get_channel(self, name: str) -> IRCChannel:
-        """Returns an IRCChannel instance for the given channel name.
+        """Return an IRCChannel instance for the given channel name.
 
         Creates one if necessary, in a race-free way.
         """
@@ -859,17 +858,17 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         return self._channels.setdefault(name, IRCChannel(name))
 
     def add_client(self, client: IRCClient) -> None:
-        """Adds a client to the client list (race-free)."""
+        """Add a client to the client list (race-free)."""
         with self._clients_lock:
             self._clients.add(client)
 
     def remove_client(self, client: IRCClient) -> None:
-        """Removes a client from the client list (race-free)."""
+        """Remove a client from the client list (race-free)."""
         with self._clients_lock:
             self._clients.remove(client)
 
     def broadcast(self, target: str, msg: str) -> None:
-        """Broadcasts a message to all clients that have joined a channel.
+        """Broadcast a message to all clients that have joined a channel.
 
         The source of the message is the BOTNAME.
         """
@@ -888,7 +887,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
 
 
 class EchoServer(DualstackServerMixIn, socketserver.UDPServer):
-    """A socketserver implementing the Echo protocol, as used by MediaWiki"""
+    """A socketserver implementing the Echo protocol, as used by MediaWiki."""
 
     daemon_threads = True
     allow_reuse_address = True
@@ -899,11 +898,12 @@ class EchoServer(DualstackServerMixIn, socketserver.UDPServer):
 
 
 class EchoHandler(socketserver.BaseRequestHandler):
-    """A socketserver handler implementing the Echo protocol, as used by MediaWiki"""
+    """A socketserver handler implementing the Echo protocol, as used by MediaWiki."""
 
     server: EchoServer
 
     def handle(self) -> None:
+        """Receive a new Echo message and broadcast to all clients."""
         data = self.request[0]
         try:
             data = data.decode("utf-8")
@@ -918,7 +918,7 @@ class EchoHandler(socketserver.BaseRequestHandler):
 
 
 def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
-    """Parses and returns the parsed command line arguments."""
+    """Parse and return the parsed command line arguments."""
     parser = argparse.ArgumentParser(
         prog="ircstream",
         description="Wikimedia RC->IRC gateway",
@@ -939,7 +939,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
 
 
 def setup_logging(log_level: str, log_format: str = "plain") -> None:
-    """Sets up logging parameters."""
+    """Set up logging parameters."""
     logging.basicConfig(format="%(message)s", level=log_level)
     default_processors = structlog.get_config()["processors"]
     structlog.configure(
@@ -962,7 +962,7 @@ def setup_logging(log_level: str, log_format: str = "plain") -> None:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    """Main entry point."""
+    """Entry point."""
     options = parse_args(argv)
     setup_logging(options.log_level, options.log_format)
     log.warning("Starting IRCStream")
