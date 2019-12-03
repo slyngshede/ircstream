@@ -616,7 +616,6 @@ class IRCClient(socketserver.BaseRequestHandler):
             destination = params[1]
         except IndexError:
             destination = self.server.servername
-
         self.msg("PONG", [destination, origin])
 
     def handle_pong(self, _: List[str]) -> None:
@@ -912,6 +911,7 @@ class EchoHandler(socketserver.BaseRequestHandler):
             channel = channel.strip()
             text = text.lstrip().replace("\r", "").replace("\n", "")
         except Exception:  # pylint: disable=broad-except
+            self.server.irc.metrics["errors"].labels("echo-parsing").inc()
             return
 
         self.log.debug("Broadcasting message", channel=channel, message=text)
