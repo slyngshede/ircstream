@@ -655,9 +655,9 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         nicklist: Iterable[str]
         if channel in self.channels:
-            nicklist = (self.nick, BOTNAME)
+            nicklist = (self.nick, "@" + BOTNAME)
         else:
-            nicklist = (BOTNAME,)
+            nicklist = ("@" + BOTNAME,)
 
         self.msg(RPL.NAMREPLY, ["=", channel, " ".join(nicklist)])
         self.msg(RPL.ENDOFNAMES, [channel, "End of /NAMES list"])
