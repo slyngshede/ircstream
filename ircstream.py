@@ -399,7 +399,6 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.buffer += data
         lines = re.split(b"\r?\n", self.buffer)
         self.buffer = lines.pop()
-
         for line in lines:
             self._handle_line(line)
 
@@ -556,7 +555,6 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         self.user = user
         self.realname = realname
-
         # we have both USER and NICK, end registration
         if self.nick:
             self.end_registration()
@@ -593,7 +591,6 @@ class IRCClient(socketserver.BaseRequestHandler):
         )
         self.msg(RPL.UMODEIS, "+i")
         self.handle_motd([])
-
         self.server.add_client(self)
         self.log = self.log.bind(client_id=self.internal_ident)
         self.log.info("Client identified")
@@ -631,26 +628,20 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         for channel in channels.split(","):
             channel = channel.strip()
-
             # is this a valid channel name?
             if not re.match("^#([a-zA-Z0-9_.])+$", channel):
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
 
-            # add user to the channel if it exists
+            # add user to the channel (if the channel exists)
             try:
                 channelobj = self.server.get_channel(channel)
             except KeyError:
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
             channelobj.add_member(self)
-
-            # add channel to user's channel list
-            self.channels[channelobj.name] = channelobj
-
-            # send join message
-            self.msg("JOIN", channel)
+            self.channels[channelobj.name] = channelobj  # add channel to user's channel list
+            self.msg("JOIN", channel)  # send join message
             self.handle_topic([channel])
             self.handle_names([channel])
-
             self.log.info("User subscribed to feed", channel=channel)
 
     def handle_topic(self, params: List[str]) -> None:
@@ -687,7 +678,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.msg(RPL.ENDOFNAMES, ["*", "End of /NAMES list"])
             return
 
-        # ignore queries for multiple channels (as some networks do)
+        # ignore queries for multiple channels (as many networks do)
         channel = channels.split(",")[0].strip()
 
         nicklist: Iterable[str]
@@ -711,7 +702,6 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         for target in targets.split(","):
             target = target.strip()
-
             if target.startswith("#"):
                 self.msg(ERR.CANNOTSENDTOCHAN, [target, "Cannot send to channel"])
             elif target == BOTNAME:
@@ -732,7 +722,6 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         for channel in channels.split(","):
             channel = channel.strip()
-
             if channel in self.channels:
                 channelobj = self.channels.pop(channel)
                 channelobj.remove_member(self)
@@ -765,7 +754,6 @@ class IRCClient(socketserver.BaseRequestHandler):
             reason = params[0]
         except IndexError:
             reason = "No reason"
-
         self.msg("ERROR", f"Closing Link: (Quit: {reason})", sync=True)
         raise self.Disconnect()
 
@@ -798,8 +786,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             self.server.remove_client(self)
         except KeyError:
-            # was never added, e.g. if was never identified
-            pass
+            pass  # was never added, e.g. if was never identified
         self.log.info("Connection finished")
 
     def __repr__(self) -> str:
@@ -852,7 +839,6 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         }
         self.metrics["clients"].set_function(lambda: len(self._clients))
         self.metrics["channels"].set_function(lambda: len(self._channels))
-
         super().__init__(server_address, RequestHandlerClass)
 
     def get_channel(self, name: str, create: bool = False) -> IRCChannel:
@@ -860,7 +846,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
 
         Creates one if asked and if necessary, in a race-free way.
         """
-        # pylint: disable=no-else-continue,no-else-break
+        # pylint: disable=no-else-return
         if create:
             # setdefault() is thread-safe, cf. issue 13521
             return self._channels.setdefault(name, IRCChannel(name))
@@ -930,7 +916,6 @@ class EchoHandler(socketserver.BaseRequestHandler):
         except Exception:  # pylint: disable=broad-except
             self.server.ircserver.metrics["errors"].labels("echo-parsing").inc()
             return
-
         self.log.debug("Broadcasting message", channel=channel, message=text)
         self.server.ircserver.broadcast(channel, text)
 
@@ -991,15 +976,13 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         irc_bind_address = options.listen_address, options.listen_port
         ircserver = IRCServer(irc_bind_address, IRCClient)
         log.info("Listening for IRC clients", listen_address=options.listen_address, listen_port=options.listen_port)
-        irc_thread = threading.Thread(target=ircserver.serve_forever)
-        irc_thread.daemon = True
+        irc_thread = threading.Thread(target=ircserver.serve_forever, daemon=True)
         irc_thread.start()
 
         echo_bind_address = options.echo_address, options.echo_port
         echoserver = EchoServer(echo_bind_address, EchoHandler, ircserver)
         log.info("Listening for Echo", echo_address=options.echo_address, echo_port=options.echo_port)
-        echo_thread = threading.Thread(target=echoserver.serve_forever)
-        echo_thread.daemon = True
+        echo_thread = threading.Thread(target=echoserver.serve_forever, daemon=True)
         echo_thread.start()
 
         prometheus_client.start_http_server(options.prom_port)
