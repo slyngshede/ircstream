@@ -892,7 +892,7 @@ class EchoServer(DualstackServerMixIn, socketserver.UDPServer):
     allow_reuse_address = True
 
     def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type, ircserver: IRCServer) -> None:
-        self.irc = ircserver
+        self.ircserver = ircserver
         super().__init__(server_address, RequestHandlerClass)
 
 
@@ -911,11 +911,11 @@ class EchoHandler(socketserver.BaseRequestHandler):
             channel = channel.strip()
             text = text.lstrip().replace("\r", "").replace("\n", "")
         except Exception:  # pylint: disable=broad-except
-            self.server.irc.metrics["errors"].labels("echo-parsing").inc()
+            self.server.ircserver.metrics["errors"].labels("echo-parsing").inc()
             return
 
         self.log.debug("Broadcasting message", channel=channel, message=text)
-        self.server.irc.broadcast(channel, text)
+        self.server.ircserver.broadcast(channel, text)
 
 
 def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
