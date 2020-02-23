@@ -21,8 +21,8 @@ from __future__ import annotations
 __version__ = "0.9.0"
 __author__ = "Faidon Liambotis"
 __copyright__ = """
-Copyright © 2016-2019 Faidon Liambotis
-Copyright © 2016-2019 Wikimedia Foundation, Inc.
+Copyright © Faidon Liambotis
+Copyright © Wikimedia Foundation, Inc.
 """
 __license__ = """
 SPDX-License-Identifier: Apache-2.0
