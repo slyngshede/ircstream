@@ -254,9 +254,8 @@ class IRCError(Exception):
 class IRCChannel:
     """Represents an IRC channel."""
 
-    def __init__(self, name: str, permanent: bool = False) -> None:
+    def __init__(self, name: str) -> None:
         self.name = name
-        self.permanent = permanent
         self._clients: Set[IRCClient] = set()
         self._lock = threading.Lock()
 
@@ -637,8 +636,11 @@ class IRCClient(socketserver.BaseRequestHandler):
             if not re.match("^#([a-zA-Z0-9_.])+$", channel):
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
 
-            # add user to the channel (create new channel if not exists)
-            channelobj = self.server.get_channel(channel)
+            # add user to the channel if it exists
+            try:
+                channelobj = self.server.get_channel(channel)
+            except KeyError:
+                raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
             channelobj.add_member(self)
 
             # add channel to user's channel list
@@ -734,8 +736,6 @@ class IRCClient(socketserver.BaseRequestHandler):
             if channel in self.channels:
                 channelobj = self.channels.pop(channel)
                 channelobj.remove_member(self)
-                if not channelobj.permanent:
-                    self.server.remove_channel(channel)
                 self.msg("PART", channel)
                 self.log.info("User unsubscribed from feed", channel=channel)
             else:
@@ -855,19 +855,22 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
 
         super().__init__(server_address, RequestHandlerClass)
 
-    def get_channel(self, name: str, permanent: bool = False) -> IRCChannel:
+    def get_channel(self, name: str, create: bool = False) -> IRCChannel:
         """Return an IRCChannel instance for the given channel name.
 
-        Creates one if necessary, in a race-free way.
+        Creates one if asked and if necessary, in a race-free way.
         """
-        # setdefault() is thread-safe, cf. issue 13521
-        return self._channels.setdefault(name, IRCChannel(name, permanent))
-
-    def remove_channel(self, name: str) -> None:
-        self._channels.pop(name, None)
+        # pylint: disable=no-else-continue,no-else-break
+        if create:
+            # setdefault() is thread-safe, cf. issue 13521
+            return self._channels.setdefault(name, IRCChannel(name))
+        else:
+            # can raise KeyError
+            return self._channels[name]
 
     @property
     def channels(self) -> List[str]:
+        """Return a list of all the server channel names."""
         return self._channels.keys()
 
     def add_client(self, client: IRCClient) -> None:
@@ -888,7 +891,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         botid = BOTNAME + "!" + BOTNAME + "@" + self.servername
         message = IRCMessage("PRIVMSG", [target, msg], source=botid)
 
-        channel = self.get_channel(target, permanent=True)
+        channel = self.get_channel(target, create=True)
         for client in channel.members():
             try:
                 client.send_queue.append(str(message))
