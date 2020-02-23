@@ -752,7 +752,8 @@ class IRCClient(socketserver.BaseRequestHandler):
             channels = self.server.channels
 
         for channel in sorted(channels):
-            self.msg(RPL.LIST, [channel, "2", TOPIC_TMPL.format(channel)])
+            usercount = "2" if channel in self.channels else "1"  # bot, or us and the bot
+            self.msg(RPL.LIST, [channel, usercount, TOPIC_TMPL.format(channel)])
         self.msg(RPL.LISTEND, "End of /LIST")
 
     def handle_quit(self, params: List[str]) -> None:
