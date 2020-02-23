@@ -855,7 +855,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
             return self._channels[name]
 
     @property
-    def channels(self) -> List[str]:
+    def channels(self) -> Iterable[str]:
         """Return a list of all the server channel names."""
         return self._channels.keys()
 
