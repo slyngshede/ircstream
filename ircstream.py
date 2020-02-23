@@ -254,8 +254,9 @@ class IRCError(Exception):
 class IRCChannel:
     """Represents an IRC channel."""
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, permanent: bool = False) -> None:
         self.name = name
+        self.permanent = permanent
         self._clients: Set[IRCClient] = set()
         self._lock = threading.Lock()
 
@@ -731,6 +732,8 @@ class IRCClient(socketserver.BaseRequestHandler):
             if channel in self.channels:
                 channelobj = self.channels.pop(channel)
                 channelobj.remove_member(self)
+                if not channelobj.permanent:
+                    self.server.remove_channel(channel)
                 self.msg("PART", channel)
             else:
                 # don't raise IRCError because this can be one of many channels
@@ -741,9 +744,9 @@ class IRCClient(socketserver.BaseRequestHandler):
         channels: Iterable[str]
         try:
             given_channels = params[0]
-            channels = set(self.channels) & set(given_channels.split(","))
+            channels = set(self.server.channels) & set(given_channels.split(","))
         except IndexError:
-            channels = self.channels
+            channels = self.server.channels
 
         for channel in sorted(channels):
             self.msg(RPL.LIST, [channel, "2", TOPIC_TMPL.format(channel)])
@@ -848,13 +851,20 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
 
         super().__init__(server_address, RequestHandlerClass)
 
-    def get_channel(self, name: str) -> IRCChannel:
+    def get_channel(self, name: str, permanent: bool = False) -> IRCChannel:
         """Return an IRCChannel instance for the given channel name.
 
         Creates one if necessary, in a race-free way.
         """
         # setdefault() is thread-safe, cf. issue 13521
-        return self._channels.setdefault(name, IRCChannel(name))
+        return self._channels.setdefault(name, IRCChannel(name, permanent))
+
+    def remove_channel(self, name: str) -> None:
+        self._channels.pop(name, None)
+
+    @property
+    def channels(self) -> List[str]:
+        return self._channels.keys()
 
     def add_client(self, client: IRCClient) -> None:
         """Add a client to the client list (race-free)."""
@@ -874,7 +884,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         botid = BOTNAME + "!" + BOTNAME + "@" + self.servername
         message = IRCMessage("PRIVMSG", [target, msg], source=botid)
 
-        channel = self.get_channel(target)
+        channel = self.get_channel(target, permanent=True)
         for client in channel.members():
             try:
                 client.send_queue.append(str(message))
