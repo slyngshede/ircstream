@@ -649,6 +649,8 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.handle_topic([channel])
             self.handle_names([channel])
 
+            self.log.info("User subscribed to feed", channel=channel)
+
     def handle_topic(self, params: List[str]) -> None:
         """Handle the TOPIC command.
 
@@ -735,6 +737,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 if not channelobj.permanent:
                     self.server.remove_channel(channel)
                 self.msg("PART", channel)
+                self.log.info("User unsubscribed from feed", channel=channel)
             else:
                 # don't raise IRCError because this can be one of many channels
                 self.msg(ERR.NOTONCHANNEL, [channel, "You're not on that channel"])
