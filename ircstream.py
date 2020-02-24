@@ -56,6 +56,7 @@ limitations under the License.
 # * IRC Definition files https://defs.ircdocs.horse/defs/
 
 import argparse
+import configparser
 import datetime
 import enum
 import errno
@@ -80,32 +81,6 @@ from typing import (
 import prometheus_client  # type: ignore  # prometheus/client_python #491
 
 import structlog  # type: ignore  # hynek/structlog #165
-
-SERVERNAME = "irc.wikimedia.org"
-NETWORK = "Wikimedia"
-BOTNAME = "rc-pmtpa"
-TOPIC_TMPL = "Stream for topic {}"
-SRV_WELCOME = """
-*******************************************************
-This is the Wikimedia RC->IRC gateway
-
-https://wikitech.wikimedia.org/wiki/Irc.wikimedia.org
-*******************************************************
-Sending messages to channels is not allowed.
-
-A channel exists for all Wikimedia wikis which have been
-changed since the last time the server was restarted. In
-general, the name is just the domain name with the .org
-left off. For example, the changes on the English Wikipedia
-are available at #en.wikipedia
-
-If you want to talk, please join one of the many
-Wikimedia-related channels on irc.freenode.net.
-
-Alternatively, you can use Wikimedia's EventStreams service,
-which streams recent changes as JSON using the SSE protocol.
-See https://wikitech.wikimedia.org/wiki/EventStreams for details.
-"""
 
 
 class IRCNumeric(enum.Enum):
@@ -485,7 +460,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 pass
             elif target == self.nick:
                 self.msg(RPL.UMODEIS, "+i")
-            elif target == BOTNAME:
+            elif target == self.server.botname:
                 raise IRCError(ERR.USERSDONTMATCH, "Can't change mode for other users")
             else:
                 raise IRCError(ERR.NOSUCHNICK, [target, "No such nick/channel"])
@@ -509,14 +484,14 @@ class IRCClient(socketserver.BaseRequestHandler):
             if host.startswith(":"):
                 host = "0" + host
             self.msg(RPL.WHOISUSER, [nick, user, host, "*", realname])
-            servername = self.server.servername
-            self.msg(RPL.WHOISSERVER, [nick, servername, "IRCStream"])
+            self.msg(RPL.WHOISSERVER, [nick, self.server.servername, "IRCStream"])
             self.msg(RPL.WHOISIDLE, [nick, "0", str(int(signon.timestamp())), "seconds idle, signon time"])
 
         if nickmask == self.nick:
             whois_reply(self.nick, self.user, self.host, self.realname, self.signon)
-        elif nickmask == BOTNAME:
-            whois_reply(BOTNAME, BOTNAME, self.server.servername, BOTNAME, self.server.boot_time)
+        elif nickmask == self.server.botname:
+            nick = user = realname = self.server.botname
+            whois_reply(nick, user, self.server.servername, realname, self.server.boot_time)
         else:
             raise IRCError(ERR.NOSUCHNICK, [nickmask, "No such nick/channel"])
 
@@ -578,7 +553,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg(
             RPL.ISUPPORT,
             [
-                f"NETWORK={NETWORK}",
+                f"NETWORK={self.server.network}",
                 "CASEMAPPING=rfc1459",
                 "CHANLIMIT=#:2000",
                 f"CHANMODES={','.join(cmodes)}",
@@ -598,7 +573,7 @@ class IRCClient(socketserver.BaseRequestHandler):
     def handle_motd(self, _: List[str]) -> None:
         """Handle the MOTD command."""
         self.msg(RPL.MOTDSTART, "- Message of the day -")
-        for line in SRV_WELCOME.strip().split("\n"):
+        for line in self.server.welcome_msg.strip().split("\n"):
             self.msg(RPL.MOTD, "- " + line)
         self.msg(RPL.ENDOFMOTD, "End of /MOTD command.")
 
@@ -662,8 +637,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         if len(params) > 1:
             raise IRCError(ERR.CHANOPRIVSNEEDED, [channel, "You're not a channel operator"])
 
-        self.msg(RPL.TOPIC, [channel, TOPIC_TMPL.format(channel)])
-        botid = BOTNAME + "!" + BOTNAME + "@" + self.server.servername
+        self.msg(RPL.TOPIC, [channel, self.server.topic_tmpl.format(channel=channel)])
+        botid = self.server.botname + "!" + self.server.botname + "@" + self.server.servername
         self.msg(RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))])
 
     def handle_names(self, params: List[str]) -> None:
@@ -683,9 +658,9 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         nicklist: Iterable[str]
         if channel in self.channels:
-            nicklist = (self.nick, "@" + BOTNAME)
+            nicklist = (self.nick, "@" + self.server.botname)
         else:
-            nicklist = ("@" + BOTNAME,)
+            nicklist = ("@" + self.server.botname,)
 
         self.msg(RPL.NAMREPLY, ["=", channel, " ".join(nicklist)])
         self.msg(RPL.ENDOFNAMES, [channel, "End of /NAMES list"])
@@ -704,7 +679,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             target = target.strip()
             if target.startswith("#"):
                 self.msg(ERR.CANNOTSENDTOCHAN, [target, "Cannot send to channel"])
-            elif target == BOTNAME:
+            elif target == self.server.botname:
                 # bot ignores all messages
                 pass
             elif target == self.nick:
@@ -742,7 +717,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         for channel in sorted(channels):
             usercount = "2" if channel in self.channels else "1"  # bot, or us and the bot
-            self.msg(RPL.LIST, [channel, usercount, TOPIC_TMPL.format(channel)])
+            self.msg(RPL.LIST, [channel, usercount, self.server.topic_tmpl.format(channel=channel)])
         self.msg(RPL.LISTEND, "End of /LIST")
 
     def handle_quit(self, params: List[str]) -> None:
@@ -818,13 +793,20 @@ class DualstackServerMixIn(socketserver.BaseServer):
 
 
 class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
+    # pylint: disable=too-many-instance-attributes
     """A socketserver TCPServer instance representing an IRC server."""
 
     daemon_threads = True
     allow_reuse_address = True
+    log = structlog.get_logger("ircstream.irc")
 
-    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type) -> None:
-        self.servername = SERVERNAME
+    def __init__(self, config: configparser.SectionProxy, RequestHandlerClass: type) -> None:
+        self.servername = config.get("servername", "irc.example.org")
+        self.botname = config.get("botname", "example-bot")
+        self.network = config.get("network", "Example")
+        self.topic_tmpl = config.get("topic_tmpl", "Stream for topic {channel}")
+        self.welcome_msg = config.get("welcome_msg", "Welcome!")
+
         self.boot_time = datetime.datetime.utcnow()
         self._channels: Dict[str, IRCChannel] = {}
         self._clients: Set[IRCClient] = set()
@@ -839,7 +821,11 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         }
         self.metrics["clients"].set_function(lambda: len(self._clients))
         self.metrics["channels"].set_function(lambda: len(self._channels))
-        super().__init__(server_address, RequestHandlerClass)
+
+        listen_address = config.get("listen_address", fallback="::")
+        listen_port = config.getint("listen_port", fallback=6667)
+        self.log.info("Listening for IRC clients", listen_address=listen_address, listen_port=listen_port)
+        super().__init__((listen_address, listen_port), RequestHandlerClass)
 
     def get_channel(self, name: str, create: bool = False) -> IRCChannel:
         """Return an IRCChannel instance for the given channel name.
@@ -872,9 +858,9 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
     def broadcast(self, target: str, msg: str) -> None:
         """Broadcast a message to all clients that have joined a channel.
 
-        The source of the message is the BOTNAME.
+        The source of the message is the bot's name.
         """
-        botid = BOTNAME + "!" + BOTNAME + "@" + self.servername
+        botid = self.botname + "!" + self.botname + "@" + self.servername
         message = IRCMessage("PRIVMSG", [target, msg], source=botid)
 
         channel = self.get_channel(target, create=True)
@@ -891,12 +877,16 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
 class EchoServer(DualstackServerMixIn, socketserver.UDPServer):
     """A socketserver implementing the Echo protocol, as used by MediaWiki."""
 
+    log = structlog.get_logger("ircstream.echo")
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type, ircserver: IRCServer) -> None:
+    def __init__(self, config: configparser.SectionProxy, RequestHandlerClass: type, ircserver: IRCServer) -> None:
         self.ircserver = ircserver
-        super().__init__(server_address, RequestHandlerClass)
+        listen_address = config.get("listen_address", fallback="::")
+        listen_port = config.getint("listen_port", fallback=9390)
+        self.log.info("Listening for Echo", echo_address=listen_address, echo_port=listen_port)
+        super().__init__((listen_address, listen_port), RequestHandlerClass)
 
 
 class EchoHandler(socketserver.BaseRequestHandler):
@@ -927,12 +917,14 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
         description="Wikimedia RC->IRC gateway",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-
-    parser.add_argument("-la", "--address", dest="listen_address", default="::", help="IP on which to listen")
-    parser.add_argument("-lp", "--port", dest="listen_port", default=6667, type=int, help="Port on which to listen")
-    parser.add_argument("-pp", "--prom-port", dest="prom_port", default=9200, type=int, help="Port on which to listen")
-    parser.add_argument("-ea", "--echo-address", dest="echo_address", default="::", help="IP on which to listen")
-    parser.add_argument("-ep", "--echo-port", dest="echo_port", default=9390, type=int, help="Port on which to listen")
+    parser.add_argument(
+        "-c",
+        "--config",
+        dest="configfile",
+        default="/etc/ircstream.conf",
+        type=argparse.FileType("r"),
+        help="Path to configuration file",
+    )
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
     parser.add_argument("--log-level", dest="log_level", default="INFO", choices=log_levels, help="Set log level")
     log_formats = ("plain", "json")
@@ -968,25 +960,33 @@ def configure_logging(log_level: str, log_format: str = "plain") -> None:
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Entry point."""
     options = parse_args(argv)
+    config = configparser.ConfigParser()
+    config.read_file(options.configfile)
+
     configure_logging(options.log_level, options.log_format)
     log = structlog.get_logger("ircstream")
     log.info("Starting IRCStream")
 
     try:
-        irc_bind_address = options.listen_address, options.listen_port
-        ircserver = IRCServer(irc_bind_address, IRCClient)
-        log.info("Listening for IRC clients", listen_address=options.listen_address, listen_port=options.listen_port)
-        irc_thread = threading.Thread(target=ircserver.serve_forever, daemon=True)
-        irc_thread.start()
+        if "irc" in config:
+            ircserver = IRCServer(config["irc"], IRCClient)
+            irc_thread = threading.Thread(target=ircserver.serve_forever, daemon=True)
+            irc_thread.start()
+        else:
+            log.error("Invalid configuration, missing section", section="irc")
+            raise SystemExit(-1)
 
-        echo_bind_address = options.echo_address, options.echo_port
-        echoserver = EchoServer(echo_bind_address, EchoHandler, ircserver)
-        log.info("Listening for Echo", echo_address=options.echo_address, echo_port=options.echo_port)
-        echo_thread = threading.Thread(target=echoserver.serve_forever, daemon=True)
-        echo_thread.start()
+        if "echo" in config:
+            echoserver = EchoServer(config["echo"], EchoHandler, ircserver)
+            echo_thread = threading.Thread(target=echoserver.serve_forever, daemon=True)
+            echo_thread.start()
+        else:
+            log.warning("Echo is not enabled in the config; server usefuless may be limited")
 
-        prometheus_client.start_http_server(options.prom_port)
-        log.info("Listening to HTTP (Prometheus)", prometheus_port=options.prom_port)
+        if "prometheus" in config:
+            prom_port = config["prometheus"].getint("listen_port", fallback=9200)
+            prometheus_client.start_http_server(prom_port)
+            log.info("Listening to HTTP (Prometheus)", prometheus_port=prom_port)
 
         input()
     except KeyboardInterrupt:
