@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-"""IRCStream -- Wikimedia RC->IRC gateway.
+"""IRCStream — Wikimedia RecentChanges → IRC gateway.
 
 This is a simple gateway to the Wikimedia recent changes feed, using the IRC
 protocol. It was written mainly for compatibility reasons, as there are a
-number of legacy clients using this interface.
+number of legacy clients in the wild relying on this interface.
 
-This software presents itself as an IRC server, albeit with a restricted
+This software presents itself as an IRC server, but only supports a restricted
 command set. Sending messages to channels or other clients is not allowed. Each
-client is within a private namespace, unable to view messages or interact with
-other connected clients. These are not even viewable on channel lists, /who
-etc.  The sole exception is a (fake) bot user, that emits the recent changes
-feed, and is also embedded in this program.
+client is within a private namespace, unable to view messages and interact with
+other connected clients, create channels, or speak on them.
 
-Channels are created opportunistically, as users join channels and/or messages
-for those appear in the recent changes feed.
+Other clients are not even viewable on channel lists, /who etc. The sole
+exception is a (fake) bot user, that emits the recent changes feed, and which
+is also embedded in the server (i.e. it's not a real client).
 """
 
 from __future__ import annotations
@@ -39,21 +38,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY CODE, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
-# This software includes (heavily modified) code from https://github.com/jaraco/irc, which is:
-#   Copyright © 2011-2016 Jason R. Coombs
-#   Copyright © 2009 Ferry Boender
-#   Copyright © 1999-2002 Joel Rosdahl
-# and licensed under the MIT license.
-#
-# The IRCMessage parser is based on RFC1459Message from girc that is:
-#   Copyright © 2014 William Pitcock <nenolod@dereferenced.org>
-# and licensed under the ISC license.
-#
-# Other useful references:
-# * RFC 1459, RFC 2812
-# * Modern IRC Client Protocol https://modern.ircdocs.horse/
-# * IRC Definition files https://defs.ircdocs.horse/defs/
 
 import argparse
 import configparser
@@ -149,6 +133,26 @@ class IRCMessage:
     Can be either initialized:
     * with its constructor using a command, params and (optionally) a source
     * given a preformatted string, using the from_message() class method
+
+    Does not currently support IRCv3 features like message tags.
+    """
+
+    # Based on the RFC1459Message class from the mammon-ircd and goshuirc projects
+    __copyright__ = "Copyright © 2014 William Pitcock <nenolod@dereferenced.org>"
+    __license__ = """
+    SPDX-License-Identifier: ISC
+
+    Permission to use, copy, modify, and/or distribute this software for any
+    purpose with or without fee is hereby granted, provided that the above
+    copyright notice and this permission notice appear in all copies.
+
+    THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+    WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+    MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+    ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
     """
 
     def __init__(self, command: str, params: Iterable[str], source: Optional[str] = None) -> None:
@@ -914,7 +918,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     """Parse and return the parsed command line arguments."""
     parser = argparse.ArgumentParser(
         prog="ircstream",
-        description="Wikimedia RC->IRC gateway",
+        description="Wikimedia RecentChanges → IRC gateway",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
