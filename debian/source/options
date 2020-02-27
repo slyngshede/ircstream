@@ -1,0 +1,7 @@
+tar-ignore = "*.egg-info"
+tar-ignore = "*/.git"
+tar-ignore = "*/.gitignore"
+tar-ignore = "*/.tox"
+tar-ignore = "*/.coverage"
+tar-ignore = "*/.eggs"
+tar-ignore = "*/.*_cache"

@@ -1,0 +1,20 @@
+Source: ircstream
+Section: net
+Priority: optional
+Maintainer: Faidon Liambotis <faidon@wikimedia.org>
+Build-Depends:
+  debhelper-compat (= 12),
+  dh-python,
+  python3-all,
+  python3-setuptools,
+Standards-Version: 4.5.0
+Homepage: https://github.com/wikimedia/ircstream
+X-Python3-Version: >= 3.7
+
+Package: ircstream
+Architecture: all
+Depends: ${python3:Depends}, ${misc:Depends}
+Description: MediaWiki RC->IRC gateway
+ IRCStream is a simple gateway to the MediaWiki recent changes feed, from the
+ IRC protocol. It was written mainly for compatibility reasons, as there are a
+ number of legacy clients in the wild relying on this interface.

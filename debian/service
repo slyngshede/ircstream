@@ -1,0 +1,12 @@
+[Unit]
+Description=ircstream
+After=local-fs.target
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ircstream
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
