@@ -3,4 +3,10 @@
 env*/*
 __pycache__
 .mypy_cache
-.tox/
+/*.egg-info/
+/*.egg
+/*.eggs
+/.venv
+/.tox
+/.coverage
+/.pytest_cache
