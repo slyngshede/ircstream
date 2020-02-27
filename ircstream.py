@@ -878,10 +878,10 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         self.metrics["messages"].inc()
 
 
-class EchoServer(DualstackServerMixIn, socketserver.UDPServer):
-    """A socketserver implementing the Echo protocol, as used by MediaWiki."""
+class RC2UDPServer(DualstackServerMixIn, socketserver.UDPServer):
+    """A socketserver implementing the RC2UDP protocol, as used by MediaWiki."""
 
-    log = structlog.get_logger("ircstream.echo")
+    log = structlog.get_logger("ircstream.rc2udp")
     daemon_threads = True
     allow_reuse_address = True
 
@@ -889,18 +889,18 @@ class EchoServer(DualstackServerMixIn, socketserver.UDPServer):
         self.ircserver = ircserver
         listen_address = config.get("listen_address", fallback="::")
         listen_port = config.getint("listen_port", fallback=9390)
-        self.log.info("Listening for Echo", echo_address=listen_address, echo_port=listen_port)
+        self.log.info("Listening for RC2UDP", listen_address=listen_address, listen_port=listen_port)
         super().__init__((listen_address, listen_port), RequestHandlerClass)
 
 
-class EchoHandler(socketserver.BaseRequestHandler):
-    """A socketserver handler implementing the Echo protocol, as used by MediaWiki."""
+class RC2UDPHandler(socketserver.BaseRequestHandler):
+    """A socketserver handler implementing the RC2UDP protocol, as used by MediaWiki."""
 
-    log = structlog.get_logger("ircstream.echo")
-    server: EchoServer
+    log = structlog.get_logger("ircstream.rc2udp")
+    server: RC2UDPServer
 
     def handle(self) -> None:
-        """Receive a new Echo message and broadcast to all clients."""
+        """Receive a new RC2UDP message and broadcast to all clients."""
         data = self.request[0]
         try:
             data = data.decode("utf-8")
@@ -908,7 +908,7 @@ class EchoHandler(socketserver.BaseRequestHandler):
             channel = channel.strip()
             text = text.lstrip().replace("\r", "").replace("\n", "")
         except Exception:  # pylint: disable=broad-except
-            self.server.ircserver.metrics["errors"].labels("echo-parsing").inc()
+            self.server.ircserver.metrics["errors"].labels("rc2udp-parsing").inc()
             return
         self.log.debug("Broadcasting message", channel=channel, message=text)
         self.server.ircserver.broadcast(channel, text)
@@ -980,12 +980,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             log.error("Invalid configuration, missing section", section="irc")
             raise SystemExit(-1)
 
-        if "echo" in config:
-            echoserver = EchoServer(config["echo"], EchoHandler, ircserver)
-            echo_thread = threading.Thread(target=echoserver.serve_forever, daemon=True)
-            echo_thread.start()
+        if "rc2udp" in config:
+            rc2udp_server = RC2UDPServer(config["rc2udp"], RC2UDPHandler, ircserver)
+            rc2udp_thread = threading.Thread(target=rc2udp_server.serve_forever, daemon=True)
+            rc2udp_thread.start()
         else:
-            log.warning("Echo is not enabled in the config; server usefuless may be limited")
+            log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
         if "prometheus" in config:
             prom_port = config["prometheus"].getint("listen_port", fallback=9200)
