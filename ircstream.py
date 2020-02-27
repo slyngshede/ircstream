@@ -992,7 +992,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             prometheus_client.start_http_server(prom_port)
             log.info("Listening to HTTP (Prometheus)", prometheus_port=prom_port)
 
-        input()
+        irc_thread.join()
     except KeyboardInterrupt:
         return
     except socket.error as exc:
