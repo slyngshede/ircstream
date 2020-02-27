@@ -7,6 +7,7 @@ import setuptools
 
 setuptools.setup(
     name="ircstream",
+    version="0.9.0",
     py_modules=["ircstream"],
     maintainer="Faidon Liambotis",
     maintainer_email="faidon@wikimedia.org",
@@ -26,14 +27,10 @@ setuptools.setup(
         "prometheus_client",
         "structlog",
     ],
-    setup_requires=[
-        "setuptools_scm",
-    ],
     entry_points={
         "console_scripts": [
             "ircstream = ircstream:main",
         ],
     },
     zip_safe=False,
-    use_scm_version=True,
 )
