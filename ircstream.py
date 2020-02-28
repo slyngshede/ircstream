@@ -49,6 +49,7 @@ import re
 import select
 import socket
 import socketserver
+import sys
 import threading
 from typing import (
     Any,
@@ -927,34 +928,37 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     )
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
     parser.add_argument("--log-level", dest="log_level", default="INFO", choices=log_levels, help="Set log level")
-    log_formats = ("plain", "json")
-    parser.add_argument("--log-format", dest="log_format", default="plain", choices=log_formats, help="Set log format")
-
+    log_formats = ("plain", "console", "json")
+    log_dflt = "console" if sys.stdout.isatty() else "plain"
+    parser.add_argument("--log-format", dest="log_format", default=log_dflt, choices=log_formats, help="Set log format")
     return parser.parse_args(argv)
 
 
 def configure_logging(log_level: str, log_format: str = "plain") -> None:
     """Configure logging parameters."""
     logging.basicConfig(format="%(message)s", level=log_level)
-    default_processors = structlog.get_config()["processors"]
+
+    processors = [
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+    ]
+    if log_format == "plain":
+        processors += [structlog.dev.ConsoleRenderer(colors=False)]
+    elif log_format == "console":
+        processors = [structlog.stdlib.add_log_level] + structlog.get_config()["processors"]
+    elif log_format == "json":
+        processors += [
+            structlog.stdlib.add_logger_name,  # adds a "logger" key
+            structlog.stdlib.add_log_level,  # adds a "level" key (string, not int)
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer(sort_keys=True),
+        ]
     structlog.configure(
-        processors=[structlog.stdlib.add_log_level] + default_processors,
+        processors=processors,
         context_class=structlog.threadlocal.wrap_dict(dict),
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
     )
-
-    if log_format == "json":
-        structlog.configure(
-            processors=[
-                structlog.stdlib.add_logger_name,  # adds a "logger" key
-                structlog.stdlib.add_log_level,  # adds a "level" key (string, not int)
-                structlog.processors.StackInfoRenderer(),
-                structlog.processors.format_exc_info,
-                structlog.processors.TimeStamper(fmt="iso"),
-                structlog.processors.JSONRenderer(sort_keys=True),
-            ],
-        )
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
@@ -964,7 +968,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     config.read_file(options.configfile)
 
     configure_logging(options.log_level, options.log_format)
-    log = structlog.get_logger("ircstream")
+    log = structlog.get_logger("ircstream.main")
     log.info("Starting IRCStream")
 
     try:
