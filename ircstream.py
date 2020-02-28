@@ -179,7 +179,6 @@ class IRCMessage:
         params = []
 
         while original_params:
-            # pylint: disable=no-else-continue,no-else-break
             # skip multiple spaces in middle of message, as per RFC 1459
             if original_params[0] == "" and len(original_params) > 1:
                 original_params.pop(0)
@@ -262,7 +261,6 @@ class IRCChannel:
 
 
 class IRCClient(socketserver.BaseRequestHandler):
-    # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """IRC client connect and command handling.
 
     Client connection is handled by the ``handle`` method which sets up a
@@ -797,7 +795,6 @@ class DualstackServerMixIn(socketserver.BaseServer):
 
 
 class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
-    # pylint: disable=too-many-instance-attributes
     """A socketserver TCPServer instance representing an IRC server."""
 
     daemon_threads = True
@@ -836,7 +833,6 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
 
         Creates one if asked and if necessary, in a race-free way.
         """
-        # pylint: disable=no-else-return
         if create:
             # setdefault() is thread-safe, cf. issue 13521
             return self._channels.setdefault(name, IRCChannel(name))
