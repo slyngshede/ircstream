@@ -886,7 +886,7 @@ class RC2UDPServer(DualstackServerMixIn, socketserver.UDPServer):
         self.ircserver = ircserver
         listen_address = config.get("listen_address", fallback="::")
         listen_port = config.getint("listen_port", fallback=9390)
-        self.log.info("Listening for RC2UDP", listen_address=listen_address, listen_port=listen_port)
+        self.log.info("Listening for RC2UDP broadcast", listen_address=listen_address, listen_port=listen_port)
         super().__init__((listen_address, listen_port), RequestHandlerClass)
 
 
@@ -990,7 +990,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         if "prometheus" in config:
             prom_port = config["prometheus"].getint("listen_port", fallback=9200)
             prometheus_client.start_http_server(prom_port)
-            log.info("Listening to HTTP (Prometheus)", prometheus_port=prom_port)
+            log.info("Listening for Prometheus HTTP", prometheus_port=prom_port)
 
         irc_thread.join()
     except KeyboardInterrupt:
