@@ -919,18 +919,17 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
+        "--config-file",
         "-c",
-        "--config",
-        dest="configfile",
         default="/etc/ircstream.conf",
         type=argparse.FileType("r"),
         help="Path to configuration file",
     )
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
-    parser.add_argument("--log-level", dest="log_level", default="INFO", choices=log_levels, help="Set log level")
+    parser.add_argument("--log-level", default="INFO", choices=log_levels, type=str.upper, help="Log level")
     log_formats = ("plain", "console", "json")
     log_dflt = "console" if sys.stdout.isatty() else "plain"
-    parser.add_argument("--log-format", dest="log_format", default=log_dflt, choices=log_formats, help="Set log format")
+    parser.add_argument("--log-format", default=log_dflt, choices=log_formats, help="Log format")
     return parser.parse_args(argv)
 
 
@@ -965,11 +964,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     """Entry point."""
     options = parse_args(argv)
     config = configparser.ConfigParser()
-    config.read_file(options.configfile)
+    config.read_file(options.config_file)
 
     configure_logging(options.log_level, options.log_format)
     log = structlog.get_logger("ircstream.main")
-    log.info("Starting IRCStream")
+    log.info("Starting IRCStream", config_file=options.config_file.name)
 
     try:
         if "irc" in config:
