@@ -387,7 +387,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             # ignore empty lines
             if not line:
                 return
-            self.log.debug("<-", message=line)
+            self.log.debug("Data received", message=line)
             msg = IRCMessage.from_message(line)
 
             whitelisted = ("CAP", "PASS", "USER", "NICK", "QUIT", "PING", "PONG")
@@ -410,7 +410,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def _send(self, msg: str) -> None:
         """Send a message to a connected client."""
-        self.log.debug("->", message=msg)
+        self.log.debug("Data sent", message=msg)
         try:
             self.request.send(msg.encode("utf-8") + b"\r\n")
         except UnicodeEncodeError as exc:
