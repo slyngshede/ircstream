@@ -72,7 +72,7 @@ def ircserver_instance(ircconfig, log):
     prometheus_client.REGISTRY.__init__()
 
 
-class IRCClient(threading.Thread):
+class IRCClient(threading.Thread, irc.client.SimpleIRCClient):
     """Basic IRC Client, used for testing.
 
     This runs as a thread, and is thus processing events "asynchronously".
@@ -82,18 +82,21 @@ class IRCClient(threading.Thread):
     provides a method to consume from the queue.
     """
 
-    def __init__(self, *args, **kwargs):
-        self.ircobj = irc.client.IRC()
-        self.connection = self.ircobj.server()
-        self.ircobj.add_global_handler("all_events", self._dispatcher, -10)
+    def __init__(self):
+        threading.Thread.__init__(self, daemon=True)
+        irc.client.SimpleIRCClient.__init__(self)
         self.events = queue.SimpleQueue()
         self._shutdown_request = False
-        super().__init__(*args, **kwargs)
 
     def run(self):
         """Run the thread."""
         while not self._shutdown_request:
-            self.ircobj.process_once(0.2)
+            try:
+                process_fn = self.reactor.process_once  # pylint: disable=no-member
+            except AttributeError:
+                # compatibility with older versions
+                process_fn = self.ircobj.process_once  # pylint: disable=no-member
+            process_fn(0.2)
 
     def shutdown(self):
         """Shutdown the client.
@@ -110,10 +113,6 @@ class IRCClient(threading.Thread):
         """
         # print(f"{event.type}, source={event.source}, target={event.target}, arguments={event.arguments}")
         self.events.put(event)
-
-    def connect(self, *args, **kwargs):
-        """Connect using the underlying connection."""
-        self.connection.connect(*args, **kwargs)
 
     def expect(self, typ: str, timeout=2, **kwargs):
         """Groks events until the expect one is found.
@@ -146,7 +145,7 @@ def ircclient_instance():
 
     Connects to localhost:6667, hardcoded at the time.
     """
-    ircclient = IRCClient(daemon=True)
+    ircclient = IRCClient()
     ircclient.start()
     ircclient.connect("localhost", 6667, "testsuite-bot")
 
