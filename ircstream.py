@@ -607,7 +607,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         for channel in channels.split(","):
             channel = channel.strip()
             # is this a valid channel name?
-            if not re.match("^#([a-zA-Z0-9_.])+$", channel):
+            if not re.match("^#([a-zA-Z0-9_.-])+$", channel):
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
 
             # add user to the channel (if the channel exists)
