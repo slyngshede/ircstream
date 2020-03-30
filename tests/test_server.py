@@ -40,9 +40,26 @@ def log_fixture():
 
 @pytest.fixture(name="ircconfig", scope="module")
 def ircconfig_instance():
-    """Fixture representing the parsed config for ircstream.conf."""
+    """Fixture representing an example configuration."""
     ircconfig = configparser.ConfigParser()
-    ircconfig.read("ircstream.conf")
+    ircconfig.read_string(
+        """
+        [irc]
+        # only listen to localhost
+        listen_address = 127.0.0.1
+        # pick a random free port (not 6667!)
+        listen_port = 0
+        servername = irc.example.org
+        network = Example
+        botname = rc-bot
+        topic_tmpl = Test topic for {channel}
+        welcome_msg =
+          *******************************************************
+          This is a test instance IRC instance
+          *******************************************************
+          Sending messages to channels is not allowed.
+        """
+    )
     yield ircconfig
 
 
@@ -140,14 +157,11 @@ class IRCClient(threading.Thread, irc.client.SimpleIRCClient):
 
 
 @pytest.fixture(name="ircclient", scope="module")
-def ircclient_instance():
-    """Fixture for an instance of an IRCClient.
-
-    Connects to localhost:6667, hardcoded at the time.
-    """
+def ircclient_instance(ircserver):
+    """Fixture for an instance of an IRCClient."""
     ircclient = IRCClient()
     ircclient.start()
-    ircclient.connect("localhost", 6667, "testsuite-bot")
+    ircclient.connect(ircserver.address, ircserver.port, "testsuite-bot")
 
     yield ircclient
 
@@ -321,6 +335,10 @@ def test_topic(ircserver, ircclient):
     ircserver.broadcast("#one-channel", "create the channel")
     ircclient.connection.join("#one-channel")
     assert ircclient.expect("join", target="#one-channel")
+
+    ircclient.connection.topic("#one-channel")
+    assert ircclient.expect("currenttopic", arguments=["#one-channel", "Test topic for #one-channel"])
+    assert ircclient.expect("topicinfo")
 
     ircclient.connection.topic("#one-channel", "new topic")
     assert ircclient.expect("chanoprivsneeded")
