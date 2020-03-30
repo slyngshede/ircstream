@@ -290,7 +290,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.send_queue: List[str] = []
         self.channels: Dict[str, IRCChannel] = {}
 
-        super().__init__(request, client_address, server)  # type: ignore  # python/typeshed #3523
+        super().__init__(request, client_address, server)
 
     def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str], sync: bool = False) -> None:
         """Prepare and queues a response to the client.
