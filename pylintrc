@@ -11,3 +11,4 @@ disable =
   no-else-return,
   too-many-instance-attributes,
   too-many-public-methods,
+  wrong-import-order,

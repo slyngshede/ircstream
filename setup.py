@@ -2,7 +2,7 @@
 """Package configuration."""
 # fmt: off
 
-import setuptools
+import setuptools  # type: ignore
 
 
 setuptools.setup(
