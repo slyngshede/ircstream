@@ -826,8 +826,9 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
 
         listen_address = config.get("listen_address", fallback="::")
         listen_port = config.getint("listen_port", fallback=6667)
-        self.log.info("Listening for IRC clients", listen_address=listen_address, listen_port=listen_port)
         super().__init__((listen_address, listen_port), RequestHandlerClass)
+        self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
+        self.log.info("Listening for IRC clients", listen_address=self.address, listen_port=self.port)
 
     def get_channel(self, name: str, create: bool = False) -> IRCChannel:
         """Return an IRCChannel instance for the given channel name.
@@ -886,8 +887,9 @@ class RC2UDPServer(DualstackServerMixIn, socketserver.UDPServer):
         self.ircserver = ircserver
         listen_address = config.get("listen_address", fallback="::")
         listen_port = config.getint("listen_port", fallback=9390)
-        self.log.info("Listening for RC2UDP broadcast", listen_address=listen_address, listen_port=listen_port)
         super().__init__((listen_address, listen_port), RequestHandlerClass)
+        self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
+        self.log.info("Listening for RC2UDP broadcast", listen_address=self.address, listen_port=self.port)
 
 
 class RC2UDPHandler(socketserver.BaseRequestHandler):
