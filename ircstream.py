@@ -44,6 +44,7 @@ import configparser
 import datetime
 import enum
 import errno
+import http.server
 import logging
 import re
 import select
@@ -904,6 +905,21 @@ class RC2UDPServer(DualstackServerMixIn, socketserver.UDPServer):
         self.log.info("Listening for RC2UDP broadcast", listen_address=self.address, listen_port=self.port)
 
 
+class PrometheusServer(DualstackServerMixIn, http.server.ThreadingHTTPServer):
+    """A Prometheus HTTP server."""
+
+    log = structlog.get_logger("ircstream.prometheus")
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, config: configparser.SectionProxy) -> None:
+        listen_address = config.get("listen_address", fallback="::")
+        listen_port = config.getint("listen_port", fallback=9200)
+        super().__init__((listen_address, listen_port), prometheus_client.MetricsHandler)
+        self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
+        self.log.info("Listening for Prometheus HTTP", listen_address=self.address, listen_port=self.port)
+
+
 def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     """Parse and return the parsed command line arguments."""
     parser = argparse.ArgumentParser(
@@ -980,9 +996,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
         if "prometheus" in config:
-            prom_port = config["prometheus"].getint("listen_port", fallback=9200)
-            prometheus_client.start_http_server(prom_port)
-            log.info("Listening for Prometheus HTTP", prometheus_port=prom_port)
+            prom_server = PrometheusServer(config["prometheus"])
+            prom_thread = threading.Thread(name="prometheus", target=prom_server.serve_forever, daemon=True)
+            prom_thread.start()
 
         irc_thread.join()
     except KeyboardInterrupt:
