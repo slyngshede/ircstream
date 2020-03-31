@@ -156,18 +156,14 @@ class IRCMessage:
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
     """
 
-    def __init__(self, command: str, params: Iterable[str], source: Optional[str] = None) -> None:
+    def __init__(self, command: str, params: Sequence[str], source: Optional[str] = None) -> None:
         self.command = command
         self.params = params
         self.source = source
 
     @classmethod
     def from_message(cls, message: str) -> IRCMessage:
-        """Parse a previously formatted IRC message.
-
-        Returns an instance of IRCMessage, that one can query for self.command
-        and self.params.
-        """
+        """Parse a previously formatted IRC message. Returns an instance of IRCMessage."""
         parts = message.split(" ")
 
         source = None
@@ -188,8 +184,10 @@ class IRCMessage:
                 arg = " ".join(original_params)[1:]
                 params.append(arg)
                 break
-            else:
+            elif original_params[0]:
                 params.append(original_params.pop(0))
+            else:
+                original_params.pop(0)
 
         return cls(command, params, source)
 
