@@ -975,7 +975,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     try:
         if "irc" in config:
             ircserver = IRCServer(config["irc"], IRCClient)
-            irc_thread = threading.Thread(target=ircserver.serve_forever, daemon=True)
+            irc_thread = threading.Thread(name="irc", target=ircserver.serve_forever, daemon=True)
             irc_thread.start()
         else:
             log.error("Invalid configuration, missing section", section="irc")
@@ -983,7 +983,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
         if "rc2udp" in config:
             rc2udp_server = RC2UDPServer(config["rc2udp"], RC2UDPHandler, ircserver)
-            rc2udp_thread = threading.Thread(target=rc2udp_server.serve_forever, daemon=True)
+            rc2udp_thread = threading.Thread(name="rc2udp", target=rc2udp_server.serve_forever, daemon=True)
             rc2udp_thread.start()
         else:
             log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
