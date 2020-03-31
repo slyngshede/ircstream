@@ -1,4 +1,4 @@
-"""Server integratiion tests."""
+"""Test an instance of our IRCServer, using the Python irc library."""
 
 import configparser
 import queue
