@@ -40,7 +40,6 @@ limitations under the License.
 """
 
 import argparse
-import collections
 import configparser
 import datetime
 import enum
@@ -54,7 +53,6 @@ import sys
 import threading
 from typing import (
     Any,
-    Deque,
     Dict,
     Iterable,
     List,
@@ -289,12 +287,11 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.keepalive = (self.signon, False)  # (last_heard, ping_sent)
         self.buffer = b""
         self.user, self.realname, self.nick = "", "", ""
-        self.send_queue: Deque[str] = collections.deque()
         self.channels: Dict[str, IRCChannel] = {}
 
         super().__init__(request, client_address, server)
 
-    def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str], sync: bool = False) -> None:
+    def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
         """Prepare and queues a response to the client.
 
         This generally does the right thing, and reduces boilerplate by
@@ -320,10 +317,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 params.insert(0, "*")
 
         msg = IRCMessage(str(command), params, source)
-        if sync:
-            self._send(str(msg))
-        else:
-            self.send_queue.append(str(msg))
+        self.send(str(msg))
 
     def handle(self) -> None:
         """Handle a new connection from a client."""
@@ -351,18 +345,13 @@ class IRCClient(socketserver.BaseRequestHandler):
         # if we haven't heard in N seconds, disconnect
         delta = datetime.datetime.utcnow() - self.keepalive[0]
         if delta > datetime.timedelta(seconds=timeout):
-            self.msg("ERROR", "Closing Link: (Ping timeout)", sync=True)
+            self.msg("ERROR", "Closing Link: (Ping timeout)")
             raise self.Disconnect()
 
         # if we haven't heard in N/4 seconds, send a PING
         if delta > datetime.timedelta(seconds=timeout / 4) and not self.keepalive[1]:
             self.msg("PING", self.server.servername)
             self.keepalive = (self.keepalive[0], True)
-
-        # write any commands to the client
-        while self.send_queue:
-            msg = self.send_queue.popleft()
-            self._send(msg)
 
     def _handle_incoming(self) -> None:
         """Receive data from a client.
@@ -411,7 +400,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.msg("ERROR", f"Internal server error ({exc})")
             self.log.exception("Internal server error")
 
-    def _send(self, msg: str) -> None:
+    def send(self, msg: str) -> None:
         """Send a message to a connected client."""
         self.log.debug("Data sent", message=msg)
         try:
@@ -735,7 +724,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             reason = params[0]
         except IndexError:
             reason = "No reason"
-        self.msg("ERROR", f"Closing Link: (Quit: {reason})", sync=True)
+        self.msg("ERROR", f"Closing Link: (Quit: {reason})")
         raise self.Disconnect()
 
     @property
@@ -871,7 +860,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         channel = self.get_channel(target, create=True)
         for client in channel.members():
             try:
-                client.send_queue.append(str(message))
+                client.send(str(message))
             except Exception:  # pylint: disable=broad-except
                 self.metrics["errors"].labels("broadcast").inc()
                 # ignore exceptions, to catch races and other corner cases
