@@ -71,7 +71,7 @@ def ircserver_instance(ircconfig, log):
     *not* the thread, however.
     """
     ircserver = ircstream.IRCServer(ircconfig["irc"], ircstream.IRCClient)
-    ircserver_thread = threading.Thread(target=ircserver.serve_forever, daemon=True)
+    ircserver_thread = threading.Thread(name="ircserver", target=ircserver.serve_forever, daemon=True)
     ircserver_thread.start()
 
     for _ in range(50):
@@ -100,7 +100,7 @@ class IRCClient(threading.Thread, irc.client.SimpleIRCClient):
     """
 
     def __init__(self):
-        threading.Thread.__init__(self, daemon=True)
+        threading.Thread.__init__(self, name="ircclient", daemon=True)
         irc.client.SimpleIRCClient.__init__(self)
         self.events = queue.SimpleQueue()
         self._shutdown_request = False
