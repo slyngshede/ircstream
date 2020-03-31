@@ -292,7 +292,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         super().__init__(request, client_address, server)
 
     def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
-        """Prepare and queues a response to the client.
+        """Prepare and sends a response to the client.
 
         This generally does the right thing, and reduces boilerplate by
           * using the correct source depending on the command;
@@ -332,7 +332,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def _handle_one(self) -> None:
         """Handle one read/write cycle."""
-        ready_to_read, _, in_error = select.select([self.request], [], [self.request], 0.1)
+        ready_to_read, _, in_error = select.select([self.request], [], [self.request], 1)
 
         if in_error:
             raise self.Disconnect()
