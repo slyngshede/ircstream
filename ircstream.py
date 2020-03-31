@@ -40,6 +40,7 @@ limitations under the License.
 """
 
 import argparse
+import collections
 import configparser
 import datetime
 import enum
@@ -53,6 +54,7 @@ import sys
 import threading
 from typing import (
     Any,
+    Deque,
     Dict,
     Iterable,
     List,
@@ -287,7 +289,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.keepalive = (self.signon, False)  # (last_heard, ping_sent)
         self.buffer = b""
         self.user, self.realname, self.nick = "", "", ""
-        self.send_queue: List[str] = []
+        self.send_queue: Deque[str] = collections.deque()
         self.channels: Dict[str, IRCChannel] = {}
 
         super().__init__(request, client_address, server)
@@ -341,10 +343,15 @@ class IRCClient(socketserver.BaseRequestHandler):
         if in_error:
             raise self.Disconnect()
 
+        # see if the client has any commands for us
+        if ready_to_read:
+            self._handle_incoming()
+
         timeout = 60
         # if we haven't heard in N seconds, disconnect
         delta = datetime.datetime.utcnow() - self.keepalive[0]
         if delta > datetime.timedelta(seconds=timeout):
+            self.msg("ERROR", "Closing Link: (Ping timeout)", sync=True)
             raise self.Disconnect()
 
         # if we haven't heard in N/4 seconds, send a PING
@@ -354,12 +361,8 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         # write any commands to the client
         while self.send_queue:
-            msg = self.send_queue.pop(0)
+            msg = self.send_queue.popleft()
             self._send(msg)
-
-        # see if the client has any commands for us
-        if ready_to_read:
-            self._handle_incoming()
 
     def _handle_incoming(self) -> None:
         """Receive data from a client.
