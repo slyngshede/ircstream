@@ -182,12 +182,18 @@ def test_ping(ircclient):
     assert ircclient.expect("noorigin")
 
 
-@pytest.mark.skip(reason="takes too long to run")
-@pytest.mark.usefixtures("ircserver")
-def test_pong(ircclient):
+def test_pong(ircserver, ircclient):
     """Test the PONG command (a server-side ping)."""
-    timeout = 60 / 4 + 1  # defaults
-    assert ircclient.expect("ping", timeout=timeout)
+    # save the old timeout
+    default_timeout = ircserver.client_timeout
+
+    # set timeout to a (much) smaller value, to avoid long waits while testing
+    ircserver.client_timeout = 4
+    wait_for = (ircserver.client_timeout / 4) + 1
+    assert ircclient.expect("ping", timeout=wait_for)
+
+    # restore it to the default value
+    ircserver.client_timeout = default_timeout
 
 
 @pytest.mark.usefixtures("ircserver")

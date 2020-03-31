@@ -339,7 +339,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         if ready_to_read:
             self._handle_incoming()
 
-        timeout = 60
+        timeout = self.server.client_timeout
         # if we haven't heard in N seconds, disconnect
         delta = datetime.datetime.utcnow() - self.keepalive[0]
         if delta > datetime.timedelta(seconds=timeout):
@@ -803,6 +803,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         self._channels: Dict[str, IRCChannel] = {}
         self._clients: Set[IRCClient] = set()
         self._clients_lock = threading.Lock()
+        self.client_timeout = 60
 
         # set up a few Prometheus metrics
         self.metrics = {
