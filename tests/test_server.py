@@ -166,7 +166,7 @@ def ircclient_instance(ircserver):
     yield ircclient
 
     # quit
-    ircclient.connection.quit("Bye")
+    ircclient.connection.quit()
     assert ircclient.expect("error")
 
     ircclient.shutdown()
