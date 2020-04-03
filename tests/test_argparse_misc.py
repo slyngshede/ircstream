@@ -1,6 +1,7 @@
 """Argument parse tests."""
 
 import json
+from unittest.mock import ANY, Mock
 
 import ircstream
 
@@ -65,3 +66,29 @@ def test_configure_logging_invalid():
     """Test that an invalid logging configuration does not work."""
     with pytest.raises(ValueError):
         ircstream.configure_logging("DEBUG", "invalid")
+
+
+def test_main(monkeypatch, caplog):
+    """Test the main/entry point function."""
+    args = ("--config", "ircstream.conf")  # stock/shipped config
+
+    # regular start; ensure that at least the IRC server is being run
+    mocked_start_noop = Mock(return_value=(Mock(), Mock()))
+    monkeypatch.setattr(ircstream, "start", mocked_start_noop)
+    ircstream.main((args))
+    mocked_start_noop.assert_any_call(ircstream.IRCServer, ANY)
+
+    # ensure the Ctrl+C handler works and does not raise any exceptions
+    mocked_start_keyboardinterrupt = Mock(side_effect=KeyboardInterrupt)
+    monkeypatch.setattr(ircstream, "start", mocked_start_keyboardinterrupt)
+    ircstream.main((args))  # does not raise an exception
+
+    # ensure that OS errors (e.g. if the socket is bound already) are handled
+    mocked_start_socket = Mock(side_effect=OSError(98, "Address already in use"))
+    monkeypatch.setattr(ircstream, "start", mocked_start_socket)
+    caplog.clear()
+    with pytest.raises(SystemExit) as exc:
+        ircstream.main((args))
+    assert exc.value.code < 0
+    assert len(caplog.records) == 1
+    assert "Address already in use" in caplog.records[0].message
