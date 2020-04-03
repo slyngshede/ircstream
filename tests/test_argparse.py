@@ -2,7 +2,7 @@
 
 import ircstream
 
-import pytest
+import pytest  # type: ignore
 
 
 def test_parse_args_help(capsys):

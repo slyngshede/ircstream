@@ -27,7 +27,7 @@ def pytest_generate_tests(metafunc):
     }
 
     for fixture, filename in fixtures.items():
-        filename = TEST_DATA_DIR / filename
+        filename = TEST_DATA_DIR / Path(filename)
         if fixture in metafunc.fixturenames:
             yamldata = yaml.safe_load(open(filename).read())
             metafunc.parametrize(fixture, yamldata["tests"])

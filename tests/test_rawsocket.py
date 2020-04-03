@@ -11,8 +11,6 @@ from typing import Sequence
 
 import pytest  # type: ignore
 
-from .test_server import ircserver_instance, ircconfig_instance, log_fixture
-
 
 class LineSocket(socket.socket):
     """Light wrapper around a socket."""

@@ -4,10 +4,7 @@ import subprocess
 
 import pytest  # type: ignore
 
-from .test_server import ircserver_instance, ircconfig_instance, log_fixture
 
-
-@pytest.mark.usefixtures("ircserver")
 def test_irctk(ircserver) -> None:
     """Test a simple conversation using irctk."""
     hostport = f"{ircserver.address}:{ircserver.port}"
@@ -22,8 +19,12 @@ def test_irctk(ircserver) -> None:
     except FileNotFoundError:
         pytest.skip("irctk not found")
 
+    # help typing realize these are not None
+    assert proc.stdin is not None and proc.stdout is not None
+
     # be careful of interprocess deadlocks!
     def comm(msg: str) -> str:
+        assert proc.stdin is not None and proc.stdout is not None
         proc.stdin.write(msg + "\n")
         proc.stdin.flush()
         return proc.stdout.readline().strip()

@@ -1,159 +1,8 @@
-"""Test an instance of our IRCServer, using the Python irc library."""
-
-import configparser
-import queue
-import threading
-import time
-
-import irc.client  # type: ignore
-
-import ircstream
-
-import prometheus_client
+"""Test an instance of our IRCServer, using a Python IRC client."""
 
 import pytest  # type: ignore
 
-import pytest_structlog
-
-import structlog
-
-
-@pytest.fixture(name="log", scope="module")
-def log_fixture():
-    """Fixture providing access to captured structlog events.
-
-    This is almost identical to pytest_structlog, but modified to support
-    scoping it as a module. Reported upstream as wimglenn/pytest-structlog #9.
-    """
-    # save settings for later
-    processors = structlog.get_config().get("processors", [])
-    configure = structlog.configure
-
-    # redirect logging to log capture
-    cap = pytest_structlog.StructuredLogCapture()
-    structlog.configure(processors=[cap.process])
-    yield cap
-
-    # back to normal behavior
-    configure(processors=processors)
-
-
-@pytest.fixture(name="ircconfig", scope="module")
-def ircconfig_instance():
-    """Fixture representing an example configuration."""
-    ircconfig = configparser.ConfigParser()
-    ircconfig.read_string(
-        """
-        [irc]
-        # only listen to localhost
-        listen_address = 127.0.0.1
-        # pick a random free port (not 6667!)
-        listen_port = 0
-        servername = irc.example.org
-        network = Example
-        botname = rc-bot
-        topic_tmpl = Test topic for {channel}
-        welcome_msg =
-          *******************************************************
-          This is a test instance IRC instance
-          *******************************************************
-          Sending messages to channels is not allowed.
-        """
-    )
-    yield ircconfig
-
-
-@pytest.fixture(name="ircserver", scope="module")
-def ircserver_instance(ircconfig, log):
-    """Fixture for an instance of an IRCServer.
-
-    This spawns a thread to run the server. It yields the IRCServer instance,
-    *not* the thread, however.
-    """
-    ircserver = ircstream.IRCServer(ircconfig["irc"], ircstream.IRCClient)
-    ircserver_thread = threading.Thread(name="ircserver", target=ircserver.serve_forever, daemon=True)
-    ircserver_thread.start()
-
-    for _ in range(50):
-        if log.has("Listening for IRC clients"):
-            break
-        time.sleep(0.1)
-
-    yield ircserver
-
-    ircserver.shutdown()
-    ircserver_thread.join()
-    ircserver.server_close()
-
-    # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
-    prometheus_client.REGISTRY.__init__()
-
-
-class IRCClient(threading.Thread, irc.client.SimpleIRCClient):
-    """Basic IRC Client, used for testing.
-
-    This runs as a thread, and is thus processing events "asynchronously".
-
-    The IRC implementation is third-party, but as far as this server goes,
-    it's pretty dummy: it just shoves incoming events into a queue, and
-    provides a method to consume from the queue.
-    """
-
-    def __init__(self):
-        threading.Thread.__init__(self, name="ircclient", daemon=True)
-        irc.client.SimpleIRCClient.__init__(self)
-        self.events = queue.SimpleQueue()
-        self._shutdown_request = False
-
-    def run(self):
-        """Run the thread."""
-        while not self._shutdown_request:
-            try:
-                process_fn = self.reactor.process_once  # pylint: disable=no-member
-            except AttributeError:
-                # compatibility with older versions
-                process_fn = self.ircobj.process_once  # pylint: disable=no-member
-            process_fn(0.2)
-
-    def shutdown(self):
-        """Shutdown the client.
-
-        Sets a shutdown request signal, that makes the server stop processing
-        events. Does not gracefully disconnect for now).
-        """
-        self._shutdown_request = True
-
-    def _dispatcher(self, _, event: irc.client.Event):
-        """Handle callbacks for all events.
-
-        Just shoves incoming events into a simple queue.
-        """
-        # print(f"{event.type}, source={event.source}, target={event.target}, arguments={event.arguments}")
-        self.events.put(event)
-
-    def expect(self, typ: str, timeout=2, **kwargs):
-        """Groks events until the expect one is found.
-
-        If the matching event is not found within a timeout, returns None.
-        otherwise, the matching event.
-        """
-        found = None
-        while True:  # grok events until the queue is empty
-            try:
-                # break if no messages have been received for a given timeout
-                event = self.events.get(block=True, timeout=timeout)
-            except queue.Empty:
-                break
-
-            # match the given type + other criteria (source, target, arguments)
-            matched = event.type == typ
-            for name, value in kwargs.items():
-                matched &= getattr(event, name) == value
-
-            if matched:
-                found = event
-                break
-        return found
+from .ircclient import IRCClient
 
 
 @pytest.fixture(name="ircclient", scope="module")
@@ -182,6 +31,7 @@ def test_ping(ircclient):
     assert ircclient.expect("noorigin")
 
 
+@pytest.mark.usefixtures("ircserver")
 def test_pong(ircserver, ircclient):
     """Test the PONG command (a server-side ping)."""
     # save the old timeout
@@ -207,10 +57,8 @@ def test_who(ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_mode(ircclient, ircconfig):
+def test_mode(ircserver, ircclient):
     """Test the MODE command."""
-    other_bot_name = ircconfig["irc"]["botname"]
-
     # channel modes
     ircclient.connection.mode("", "")
     assert ircclient.expect("needmoreparams")
@@ -231,7 +79,7 @@ def test_mode(ircclient, ircconfig):
     ircclient.connection.mode("testsuite-bot", "+r")
     # (no response expected)
 
-    ircclient.connection.mode(other_bot_name, "")
+    ircclient.connection.mode(ircserver.botname, "")
     assert ircclient.expect("usersdontmatch")
 
     ircclient.connection.mode("nonexistent", "")
@@ -239,11 +87,9 @@ def test_mode(ircclient, ircconfig):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_whois(ircclient, ircconfig):
+def test_whois(ircserver, ircclient):
     """Test the WHOIS command."""
-    other_bot_name = ircconfig["irc"]["botname"]
-
-    ircclient.connection.whois([other_bot_name])
+    ircclient.connection.whois([ircserver.botname])
     assert ircclient.expect("whoisuser")
     assert ircclient.expect("whoisserver")
     assert ircclient.expect("whoisidle")
@@ -366,10 +212,8 @@ def test_names(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_privmsg(ircclient, ircconfig):
+def test_privmsg(ircserver, ircclient):
     """Test the PRIVMSG command."""
-    other_bot_name = ircconfig["irc"]["botname"]
-
     ircclient.connection.privmsg("", "")
     assert ircclient.expect("needmoreparams")
 
@@ -384,7 +228,7 @@ def test_privmsg(ircclient, ircconfig):
     ircclient.connection.privmsg("nonexistent", "message")
     assert ircclient.expect("nosuchnick")
 
-    ircclient.connection.privmsg(other_bot_name, "message")
+    ircclient.connection.privmsg(ircserver.botname, "message")
     # (no response expected)
 
 
