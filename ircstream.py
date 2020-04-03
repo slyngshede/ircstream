@@ -404,7 +404,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         """Send a message to a connected client."""
         self.log.debug("Data sent", message=msg)
         try:
-            self.request.send(msg.encode("utf8") + b"\r\n")
+            self.request.sendall(msg.encode("utf8") + b"\r\n")
         except UnicodeEncodeError as exc:
             self.log.debug("Internal encoding error", error=exc)
         except OSError as exc:
