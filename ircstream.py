@@ -349,7 +349,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise self.Disconnect()
 
         # if it's N/4 seconds since the last PONG, send a PING
-        if delta > datetime.timedelta(seconds=timeout / 4) and not self.ping_sent and self.authenticated:
+        if delta > datetime.timedelta(seconds=timeout / 4) and not self.ping_sent and self.identified:
             self.msg("PING", self.server.servername)
             self.ping_sent = True
 
@@ -383,7 +383,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             msg = IRCMessage.from_message(line)
 
             whitelisted = ("CAP", "PASS", "USER", "NICK", "QUIT", "PING", "PONG")
-            if not self.authenticated and msg.command not in whitelisted:
+            if not self.identified and msg.command not in whitelisted:
                 raise IRCError(ERR.NOTREGISTERED, "You have not registered")
 
             handler = getattr(self, f"handle_{msg.command.lower()}", None)
@@ -504,7 +504,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick) or len(nick) < 2:
             raise IRCError(ERR.ERRONEUSNICKNAME, [nick, "Erroneus nickname"])
 
-        if not self.authenticated:
+        if not self.identified:
             self.nick = nick
             if self.user:
                 self.end_registration()
@@ -737,14 +737,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         raise self.Disconnect()
 
     @property
-    def authenticated(self) -> bool:
-        """Return True if a user is authenticated; False otherwise."""
+    def identified(self) -> bool:
+        """Return True if a user is identified; False otherwise."""
         return bool(self.nick and self.user)
 
     @property
     def client_ident(self) -> str:
         """Return the client identifier as included in many command replies."""
-        if not self.authenticated:
+        if not self.identified:
             raise IRCError(ERR.NOTREGISTERED, "You have not registered")
         return f"{self.nick}!{self.user}@{self.server.servername}"
 
@@ -752,7 +752,7 @@ class IRCClient(socketserver.BaseRequestHandler):
     def internal_ident(self) -> str:
         """Return the internal (non-wire-protocol) client identifier."""
         host_port = f"[{self.host}]:{self.port}"
-        if not self.authenticated:
+        if not self.identified:
             return f"unidentified/{host_port}"
         return f"{self.nick}!{self.user}/{host_port}"
 
