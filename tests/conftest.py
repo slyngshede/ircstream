@@ -42,6 +42,10 @@ def fixture_config():
           This is a test IRC instance
           *******************************************************
           Sending messages to channels is not allowed.
+
+        [rc2udp]
+        listen_address = ::
+        listen_port = 0
         """
     )
     yield config
