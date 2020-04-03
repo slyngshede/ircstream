@@ -4,6 +4,7 @@ import queue
 import threading
 
 import irc.client  # type: ignore
+import irc.connection  # type: ignore
 
 
 class IRCClient(threading.Thread, irc.client.SimpleIRCClient):
@@ -21,6 +22,12 @@ class IRCClient(threading.Thread, irc.client.SimpleIRCClient):
         irc.client.SimpleIRCClient.__init__(self)
         self.events = queue.SimpleQueue()
         self._shutdown_request = False
+
+    def connect(self, *args, **kwargs):
+        """Override the method to add transparent IPv6 support."""
+        if args and ":" in args[0]:
+            kwargs["connect_factory"] = irc.connection.Factory(ipv6=True)
+        super().connect(*args, **kwargs)
 
     def run(self):
         """Run the thread."""

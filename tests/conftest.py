@@ -28,8 +28,7 @@ def fixture_config():
     config.read_string(
         """
         [irc]
-        # only listen to localhost
-        listen_address = 127.0.0.1
+        listen_address = ::
         # pick a random free port (not 6667!)
         listen_port = 0
         servername = irc.example.org

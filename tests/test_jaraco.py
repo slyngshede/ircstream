@@ -14,7 +14,6 @@ def ircclient_instance(ircserver):
 
     yield ircclient
 
-    # quit
     ircclient.connection.quit()
     assert ircclient.expect("error")
 

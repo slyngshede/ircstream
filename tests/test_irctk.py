@@ -8,6 +8,12 @@ import pytest  # type: ignore
 def test_irctk(ircserver) -> None:
     """Test a simple conversation using irctk."""
     hostport = f"{ircserver.address}:{ircserver.port}"
+    if ircserver.address == "::":
+        # irctk does not support IPv6, assume IPv4 localhost
+        hostport = f"127.0.0.1:{ircserver.port}"
+    elif ":" in ircserver.address:
+        pytest.skip("irctk does not support IPv6")
+
     try:
         proc = subprocess.Popen(
             ["irctk", "-m", hostport],
