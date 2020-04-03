@@ -524,6 +524,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         self.user = user
         self.realname = realname
+
         # we have both USER and NICK, end registration
         if self.nick:
             self.end_registration()
@@ -560,6 +561,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         )
         self.msg(RPL.UMODEIS, "+i")
         self.handle_motd([])
+
         self.server.add_client(self)
         self.log = self.log.bind(client_id=self.internal_ident)
         self.log.info("Client identified")
@@ -597,6 +599,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         for channel in channels.split(","):
             channel = channel.strip()
+
             # is this a valid channel name?
             if not re.match("^#([a-zA-Z0-9_.-])+$", channel):
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
@@ -607,10 +610,15 @@ class IRCClient(socketserver.BaseRequestHandler):
             except KeyError:
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
             channelobj.add_member(self)
-            self.channels[channelobj.name] = channelobj  # add channel to user's channel list
-            self.msg("JOIN", channel)  # send join message
+
+            # add channel to user's channel list
+            self.channels[channelobj.name] = channelobj
+
+            # send join message
+            self.msg("JOIN", channel)
             self.handle_topic([channel])
             self.handle_names([channel])
+
             self.log.info("User subscribed to feed", channel=channel)
 
     def handle_topic(self, params: List[str]) -> None:
@@ -885,6 +893,7 @@ class RC2UDPHandler(socketserver.BaseRequestHandler):
         except Exception:  # pylint: disable=broad-except
             self.server.ircserver.metrics["errors"].labels("rc2udp-parsing").inc()
             return
+
         self.log.debug("Broadcasting message", channel=channel, message=text)
         self.server.ircserver.broadcast(channel, text)
 
