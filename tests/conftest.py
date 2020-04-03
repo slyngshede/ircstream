@@ -60,6 +60,8 @@ def fixture_ircserver(config):
     This spawns a thread to run the server. It yields the IRCServer instance,
     *not* the thread, however.
     """
+    # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
+    prometheus_client.REGISTRY.__init__()
     server, thread = ircstream.start(ircstream.IRCServer, config["irc"])
 
     yield server
@@ -67,6 +69,3 @@ def fixture_ircserver(config):
     server.shutdown()
     thread.join()
     server.server_close()
-
-    # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
-    prometheus_client.REGISTRY.__init__()
