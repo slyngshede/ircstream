@@ -58,7 +58,7 @@ def fixture_ircserver(config):
     This spawns a thread to run the server. It yields the IRCServer instance,
     *not* the thread, however.
     """
-    ircserver = ircstream.IRCServer(config["irc"], ircstream.IRCClient)
+    ircserver = ircstream.IRCServer(config["irc"])
     ircserver_thread = threading.Thread(name="ircserver", target=ircserver.serve_forever, daemon=True)
     ircserver_thread.start()
 

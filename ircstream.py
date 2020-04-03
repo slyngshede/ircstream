@@ -792,7 +792,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     log = structlog.get_logger("ircstream.irc")
 
-    def __init__(self, config: configparser.SectionProxy, RequestHandlerClass: type) -> None:
+    def __init__(self, config: configparser.SectionProxy) -> None:
         self.servername = config.get("servername", "irc.example.org")
         self.botname = config.get("botname", "example-bot")
         self.network = config.get("network", "Example")
@@ -817,7 +817,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
 
         listen_address = config.get("listen_address", fallback="::")
         listen_port = config.getint("listen_port", fallback=6667)
-        super().__init__((listen_address, listen_port), RequestHandlerClass)
+        super().__init__((listen_address, listen_port), IRCClient)
         self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
         self.log.info("Listening for IRC clients", listen_address=self.address, listen_port=self.port)
 
@@ -867,22 +867,6 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         self.metrics["messages"].inc()
 
 
-class RC2UDPServer(DualstackServerMixIn, socketserver.UDPServer):
-    """A socketserver implementing the RC2UDP protocol, as used by MediaWiki."""
-
-    log = structlog.get_logger("ircstream.rc2udp")
-    daemon_threads = True
-    allow_reuse_address = True
-
-    def __init__(self, config: configparser.SectionProxy, RequestHandlerClass: type, ircserver: IRCServer) -> None:
-        self.ircserver = ircserver
-        listen_address = config.get("listen_address", fallback="::")
-        listen_port = config.getint("listen_port", fallback=9390)
-        super().__init__((listen_address, listen_port), RequestHandlerClass)
-        self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
-        self.log.info("Listening for RC2UDP broadcast", listen_address=self.address, listen_port=self.port)
-
-
 class RC2UDPHandler(socketserver.BaseRequestHandler):
     """A socketserver handler implementing the RC2UDP protocol, as used by MediaWiki."""
 
@@ -902,6 +886,22 @@ class RC2UDPHandler(socketserver.BaseRequestHandler):
             return
         self.log.debug("Broadcasting message", channel=channel, message=text)
         self.server.ircserver.broadcast(channel, text)
+
+
+class RC2UDPServer(DualstackServerMixIn, socketserver.UDPServer):
+    """A socketserver implementing the RC2UDP protocol, as used by MediaWiki."""
+
+    log = structlog.get_logger("ircstream.rc2udp")
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, config: configparser.SectionProxy, ircserver: IRCServer) -> None:
+        self.ircserver = ircserver
+        listen_address = config.get("listen_address", fallback="::")
+        listen_port = config.getint("listen_port", fallback=9390)
+        super().__init__((listen_address, listen_port), RC2UDPHandler)
+        self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
+        self.log.info("Listening for RC2UDP broadcast", listen_address=self.address, listen_port=self.port)
 
 
 def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
@@ -965,7 +965,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     try:
         if "irc" in config:
-            ircserver = IRCServer(config["irc"], IRCClient)
+            ircserver = IRCServer(config["irc"])
             irc_thread = threading.Thread(name="irc", target=ircserver.serve_forever, daemon=True)
             irc_thread.start()
         else:
@@ -973,7 +973,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             raise SystemExit(-1)
 
         if "rc2udp" in config:
-            rc2udp_server = RC2UDPServer(config["rc2udp"], RC2UDPHandler, ircserver)
+            rc2udp_server = RC2UDPServer(config["rc2udp"], ircserver)
             rc2udp_thread = threading.Thread(name="rc2udp", target=rc2udp_server.serve_forever, daemon=True)
             rc2udp_thread.start()
         else:

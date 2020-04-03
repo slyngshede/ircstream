@@ -46,7 +46,7 @@ def fixture_rc2udp_server(config):
     This spawns a thread to run the server. It yields the instance.
     """
     mock_ircserver = MockIRCServer()
-    rc2udp_server = ircstream.RC2UDPServer(config["rc2udp"], ircstream.RC2UDPHandler, mock_ircserver)  # type: ignore
+    rc2udp_server = ircstream.RC2UDPServer(config["rc2udp"], mock_ircserver)  # type: ignore
     rc2udp_thread = threading.Thread(name="rc2udp", target=rc2udp_server.serve_forever, daemon=True)
     rc2udp_thread.start()
 
