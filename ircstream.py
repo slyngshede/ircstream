@@ -283,7 +283,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.log.new(ip=self.host, port=self.port)
 
         self.signon = datetime.datetime.utcnow()
-        self.keepalive = (self.signon, False)  # (last_heard, ping_sent)
+        self.last_heard = self.signon
+        self.ping_sent = False
         self.buffer = b""
         self.user, self.realname, self.nick = "", "", ""
         self.channels: Dict[str, IRCChannel] = {}
@@ -342,15 +343,15 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         timeout = self.server.client_timeout
         # if we haven't heard in N seconds, disconnect
-        delta = datetime.datetime.utcnow() - self.keepalive[0]
+        delta = datetime.datetime.utcnow() - self.last_heard
         if delta > datetime.timedelta(seconds=timeout):
             self.msg("ERROR", "Closing Link: (Ping timeout)")
             raise self.Disconnect()
 
-        # if we haven't heard in N/4 seconds, send a PING
-        if delta > datetime.timedelta(seconds=timeout / 4) and not self.keepalive[1] and self.authenticated:
+        # if it's N/4 seconds since the last PONG, send a PING
+        if delta > datetime.timedelta(seconds=timeout / 4) and not self.ping_sent and self.authenticated:
             self.msg("PING", self.server.servername)
-            self.keepalive = (self.keepalive[0], True)
+            self.ping_sent = True
 
     def _handle_incoming(self) -> None:
         """Receive data from a client.
@@ -588,7 +589,8 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def handle_pong(self, _: List[str]) -> None:
         """Handle client PONG responses to keep the connection alive."""
-        self.keepalive = (datetime.datetime.utcnow(), False)
+        self.last_heard = datetime.datetime.utcnow()
+        self.ping_sent = False
 
     def handle_join(self, params: List[str]) -> None:
         """Handle the JOIN command."""
