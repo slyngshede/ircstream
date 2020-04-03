@@ -348,7 +348,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise self.Disconnect()
 
         # if we haven't heard in N/4 seconds, send a PING
-        if delta > datetime.timedelta(seconds=timeout / 4) and not self.keepalive[1]:
+        if delta > datetime.timedelta(seconds=timeout / 4) and not self.keepalive[1] and self.authenticated:
             self.msg("PING", self.server.servername)
             self.keepalive = (self.keepalive[0], True)
 
