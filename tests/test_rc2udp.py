@@ -46,15 +46,13 @@ def fixture_rc2udp_server(config):
     This spawns a thread to run the server. It yields the instance.
     """
     mock_ircserver = MockIRCServer()
-    rc2udp_server = ircstream.RC2UDPServer(config["rc2udp"], mock_ircserver)  # type: ignore
-    rc2udp_thread = threading.Thread(name="rc2udp", target=rc2udp_server.serve_forever, daemon=True)
-    rc2udp_thread.start()
+    server, thread = ircstream.start(ircstream.RC2UDPServer, config["rc2udp"], mock_ircserver)  # type: ignore
 
-    yield rc2udp_server
+    yield server
 
-    rc2udp_server.shutdown()
-    rc2udp_thread.join()
-    rc2udp_server.server_close()
+    server.shutdown()
+    thread.join()
+    server.server_close()
 
 
 def send_datagram(address: str, port: int, data: bytes) -> None:

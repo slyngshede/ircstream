@@ -1,7 +1,6 @@
 """Testing initialization."""
 
 import configparser
-import threading
 
 import ircstream
 
@@ -58,15 +57,13 @@ def fixture_ircserver(config):
     This spawns a thread to run the server. It yields the IRCServer instance,
     *not* the thread, however.
     """
-    ircserver = ircstream.IRCServer(config["irc"])
-    ircserver_thread = threading.Thread(name="ircserver", target=ircserver.serve_forever, daemon=True)
-    ircserver_thread.start()
+    server, thread = ircstream.start(ircstream.IRCServer, config["irc"])
 
-    yield ircserver
+    yield server
 
-    ircserver.shutdown()
-    ircserver_thread.join()
-    ircserver.server_close()
+    server.shutdown()
+    thread.join()
+    server.server_close()
 
     # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
     prometheus_client.REGISTRY.__init__()

@@ -969,6 +969,14 @@ def configure_logging(log_level: str, log_format: str = "plain") -> None:
     )
 
 
+def start(cls: type, config: configparser.SectionProxy, *args: Any) -> Tuple[socketserver.BaseServer, threading.Thread]:
+    """Start a socket server, and their associated thread to server requests."""
+    server = cls(config, *args)
+    thread = threading.Thread(name=config.name, target=server.serve_forever, daemon=True)
+    thread.start()
+    return (server, thread)
+
+
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Entry point."""
     options = parse_args(argv)
@@ -981,26 +989,20 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     try:
         if "irc" in config:
-            ircserver = IRCServer(config["irc"])
-            irc_thread = threading.Thread(name="irc", target=ircserver.serve_forever, daemon=True)
-            irc_thread.start()
+            ircserver, ircthread = start(IRCServer, config["irc"])
         else:
             log.error("Invalid configuration, missing section", section="irc")
             raise SystemExit(-1)
 
         if "rc2udp" in config:
-            rc2udp_server = RC2UDPServer(config["rc2udp"], ircserver)
-            rc2udp_thread = threading.Thread(name="rc2udp", target=rc2udp_server.serve_forever, daemon=True)
-            rc2udp_thread.start()
+            start(RC2UDPServer, config["rc2udp"], ircserver)
         else:
             log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
         if "prometheus" in config:
-            prom_server = PrometheusServer(config["prometheus"])
-            prom_thread = threading.Thread(name="prometheus", target=prom_server.serve_forever, daemon=True)
-            prom_thread.start()
+            start(PrometheusServer, config["prometheus"])
 
-        irc_thread.join()
+        ircthread.join()
     except KeyboardInterrupt:
         return
     except socket.error as exc:
