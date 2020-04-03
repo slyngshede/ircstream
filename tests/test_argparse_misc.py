@@ -69,14 +69,16 @@ def test_configure_logging_invalid():
 
 
 def test_main(monkeypatch, caplog):
-    """Test the main/entry point function."""
-    args = ("--config", "ircstream.conf")  # stock/shipped config
+    """Test the main/entry point function (stock/shipper config)."""
+    args = ("--config", "ircstream.conf")
 
     # regular start; ensure that at least the IRC server is being run
     mocked_start_noop = Mock(return_value=(Mock(), Mock()))
     monkeypatch.setattr(ircstream, "start", mocked_start_noop)
     ircstream.main((args))
     mocked_start_noop.assert_any_call(ircstream.IRCServer, ANY)
+    mocked_start_noop.assert_any_call(ircstream.RC2UDPServer, ANY, ANY)
+    mocked_start_noop.assert_any_call(ircstream.PrometheusServer, ANY)
 
     # ensure the Ctrl+C handler works and does not raise any exceptions
     mocked_start_keyboardinterrupt = Mock(side_effect=KeyboardInterrupt)
@@ -92,3 +94,45 @@ def test_main(monkeypatch, caplog):
     assert exc.value.code < 0
     assert len(caplog.records) == 1
     assert "Address already in use" in caplog.records[0].message
+
+
+def test_main_section_no_irc(tmp_path, monkeypatch, caplog):
+    """Test the main/entry point function (without an IRC config)."""
+    tmp_config = tmp_path / "ircstream.conf"
+    tmp_config.write_text(
+        """
+        [rc2udp]
+        [prometheus]
+        """
+    )
+    args = ("--config", str(tmp_config))  # stock/shipped config
+
+    # regular start; ensure that at least the IRC server is being run
+    mocked_start_noop = Mock(return_value=(Mock(), Mock()))
+    monkeypatch.setattr(ircstream, "start", mocked_start_noop)
+    with pytest.raises(SystemExit) as exc:
+        ircstream.main((args))
+    assert exc.value.code < 0
+    assert len(caplog.records) == 1
+    assert "Invalid configuration" in caplog.records[0].message
+
+
+def test_main_section_no_optional(tmp_path, monkeypatch):
+    """Test the main/entry point function (without optional config)."""
+    tmp_config = tmp_path / "ircstream.conf"
+    tmp_config.write_text(
+        """
+        [irc]
+        """
+    )
+    args = ("--config", str(tmp_config))  # stock/shipped config
+
+    # regular start; ensure that at least the IRC server is being run
+    mocked_start_noop = Mock(return_value=(Mock(), Mock()))
+    monkeypatch.setattr(ircstream, "start", mocked_start_noop)
+    ircstream.main((args))
+    mocked_start_noop.assert_any_call(ircstream.IRCServer, ANY)
+    with pytest.raises(AssertionError):
+        mocked_start_noop.assert_any_call(ircstream.PrometheusServer, ANY)
+    with pytest.raises(AssertionError):
+        mocked_start_noop.assert_any_call(ircstream.RC2UDPServer, ANY)
