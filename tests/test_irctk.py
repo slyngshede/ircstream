@@ -15,8 +15,9 @@ def test_irctk(ircserver) -> None:
         pytest.skip("irctk does not support IPv6")
 
     try:
+        miscargs = "--event-to-message --interval=0 --interval-end=1".split()
         proc = subprocess.Popen(
-            ["irctk", "-m", hostport],
+            ["irctk", *miscargs, hostport],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

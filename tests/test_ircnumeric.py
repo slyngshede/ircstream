@@ -7,6 +7,11 @@ from ircstream import ERR, RPL
 
 import yaml
 
+try:
+    from yaml import CSafeLoader as SafeLoader
+except ImportError:
+    from yaml import SafeLoader  # type: ignore
+
 TEST_NUMERICS_YAML = Path("testdata") / "numerics.yaml"
 
 
@@ -20,7 +25,7 @@ def test_numeric() -> None:
     definitions are valid, and not that we have the complete list.
     """
     # build a name->(numeric, numeric, ...) dictionary, e.g. RPL_WELCOME -> (001,)
-    yamldata = yaml.safe_load(open(TEST_NUMERICS_YAML).read())
+    yamldata = yaml.load(open(TEST_NUMERICS_YAML).read(), Loader=SafeLoader)
     numerics: Dict[str, Set[str]] = {}
     for value in yamldata["values"]:
         # numerics are not necessarily unique and vary by implementation.
