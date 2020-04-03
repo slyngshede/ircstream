@@ -374,7 +374,7 @@ class IRCClient(socketserver.BaseRequestHandler):
     def _handle_line(self, bline: bytes) -> None:
         """Handle a single line of input (i.e. a command and arguments)."""
         try:
-            line = bline.decode("utf-8").strip()
+            line = bline.decode("utf8").strip()
             # ignore empty lines
             if not line:
                 return
@@ -403,7 +403,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         """Send a message to a connected client."""
         self.log.debug("Data sent", message=msg)
         try:
-            self.request.send(msg.encode("utf-8") + b"\r\n")
+            self.request.send(msg.encode("utf8") + b"\r\n")
         except UnicodeEncodeError as exc:
             self.log.debug("Internal encoding error", error=exc)
         except socket.error as exc:
@@ -878,7 +878,7 @@ class RC2UDPHandler(socketserver.BaseRequestHandler):
         """Receive a new RC2UDP message and broadcast to all clients."""
         data = self.request[0]
         try:
-            data = data.decode("utf-8")
+            data = data.decode("utf8")
             channel, text = data.split("\t", maxsplit=1)
             channel = channel.strip()
             text = text.lstrip().replace("\r", "").replace("\n", "")
