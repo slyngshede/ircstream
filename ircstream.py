@@ -407,7 +407,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.request.send(msg.encode("utf8") + b"\r\n")
         except UnicodeEncodeError as exc:
             self.log.debug("Internal encoding error", error=exc)
-        except socket.error as exc:
+        except OSError as exc:
             if exc.errno == errno.EPIPE:
                 raise self.Disconnect()
             raise
@@ -1022,8 +1022,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         ircserver.server_close()
     except KeyboardInterrupt:
         return
-    except socket.error as exc:
-        log.error(f"Socket error: {exc.strerror} ({exc.errno})")
+    except OSError as exc:
+        log.error(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
         raise SystemExit(-2)
 
 
