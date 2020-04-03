@@ -45,6 +45,10 @@ def fixture_config():
         [rc2udp]
         listen_address = ::
         listen_port = 0
+
+        [prometheus]
+        listen_address = ::
+        listen_port = 0
         """
     )
     yield config
