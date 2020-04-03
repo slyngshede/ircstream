@@ -1003,10 +1003,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             start(PrometheusServer, config["prometheus"])
 
         ircthread.join()
+        ircserver.server_close()
     except KeyboardInterrupt:
         return
     except socket.error as exc:
-        log.error(repr(exc))
+        log.error(f"Socket error: {exc.strerror} ({exc.errno})")
         raise SystemExit(-2)
 
 
