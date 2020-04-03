@@ -977,6 +977,9 @@ def configure_logging(log_level: str, log_format: str = "plain") -> None:
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.JSONRenderer(sort_keys=True),
         ]
+    else:
+        raise ValueError(f"Invalid logging format specified: {log_format}")
+
     structlog.configure(
         processors=processors,
         context_class=structlog.threadlocal.wrap_dict(dict),
