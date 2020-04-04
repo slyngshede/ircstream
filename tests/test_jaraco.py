@@ -39,8 +39,8 @@ def test_pong(ircserver, ircclient):
     default_timeout = ircserver.client_timeout
 
     # set timeout to a (much) smaller value, to avoid long waits while testing
-    ircserver.client_timeout = 4
-    wait_for = (ircserver.client_timeout / 4) + 1
+    ircserver.client_timeout = 2
+    wait_for = (ircserver.client_timeout / 2) + 1
     assert ircclient.expect("ping", timeout=wait_for)
 
     # restore it to the default value

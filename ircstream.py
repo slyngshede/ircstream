@@ -350,8 +350,8 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.msg("ERROR", "Closing Link: (Ping timeout)")
             raise self.Disconnect()
 
-        # if it's N/4 seconds since the last PONG, send a PING
-        if delta > datetime.timedelta(seconds=timeout / 4) and not self.ping_sent and self.identified:
+        # if it's N/2 seconds since the last PONG, send a PING
+        if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.identified:
             self.msg("PING", self.server.servername)
             self.ping_sent = True
 
@@ -831,7 +831,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         self._channels: Dict[str, IRCChannel] = {}
         self._clients: Set[IRCClient] = set()
         self._clients_lock = threading.Lock()
-        self.client_timeout = 60
+        self.client_timeout = 120
 
         # set up a few Prometheus metrics
         self.metrics = {
