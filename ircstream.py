@@ -689,7 +689,7 @@ class IRCClient(socketserver.BaseRequestHandler):
     def handle_privmsg(self, params: List[str]) -> None:
         """Handle the PRIVMSG command, sending a message to a user or channel.
 
-        No-op in our case, as we only allow the bot to message users.
+        Almost no-op in our case, as we only allow the bot to message users.
         """
         try:
             targets, msg = params[:2]
@@ -701,13 +701,24 @@ class IRCClient(socketserver.BaseRequestHandler):
             if target.startswith("#"):
                 self.msg(ERR.CANNOTSENDTOCHAN, [target, "Cannot send to channel"])
             elif target == self.server.botname:
-                # bot ignores all messages
-                pass
+                pass  # bot ignores all messages
             elif target == self.nick:
-                # echo back
-                self.msg("PRIVMSG", [target, msg])
+                self.msg("PRIVMSG", [target, msg])  # echo back
             else:
                 self.msg(ERR.NOSUCHNICK, [target, "No such nick/channel"])
+
+    def handle_notice(self, params: List[str]) -> None:
+        """Handle the NOTICE command, sending a notice to a user or channel.
+
+        We only allow self-notices, and per RFC, do not return any errors.
+        """
+        try:
+            targets, msg = params[:2]
+        except ValueError:
+            raise IRCError(ERR.NEEDMOREPARAMS, ["NOTICE", "Not enough parameters"])
+
+        if self.nick in targets.split(","):
+            self.msg("NOTICE", [self.nick, msg])  # echo back
 
     def handle_part(self, params: List[str]) -> None:
         """Handle the PART command."""

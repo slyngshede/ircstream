@@ -249,6 +249,21 @@ def test_privmsg(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
+def test_notice(ircserver, ircclient):
+    """Test the NOTICE command."""
+    ircclient.connection.notice("", "")
+    assert ircclient.expect("needmoreparams")
+
+    # private messages
+    ircclient.connection.notice(BOTNAME, "message")
+    assert ircclient.expect("privnotice")
+
+    ircclient.connection.privmsg(ircserver.botname, "message")
+    ircclient.connection.notice("nonexistent", "message")
+    # (no response expected)
+
+
+@pytest.mark.usefixtures("ircserver")
 def test_list(ircserver, ircclient):
     """Test the LIST command."""
     ircclient.connection.list()
