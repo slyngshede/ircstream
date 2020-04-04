@@ -33,7 +33,7 @@ def test_config_nonexistent(capsys):
 
 def test_configure_logging_plain(caplog):
     """Test that the plain logging configuration works."""
-    ircstream.configure_logging("DEBUG", "plain")
+    ircstream.configure_logging("plain")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warn("this is a test log")
@@ -42,8 +42,8 @@ def test_configure_logging_plain(caplog):
 
 def test_configure_logging_console(caplog):
     """Test that the console logging configuration works."""
-    ircstream.configure_logging("DEBUG", "plain")  # needed to override the default noop config in testing
-    ircstream.configure_logging("DEBUG", "console")
+    ircstream.configure_logging("plain")  # needed to override the default noop config in testing
+    ircstream.configure_logging("console")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warn("this is a test log")
@@ -52,7 +52,7 @@ def test_configure_logging_console(caplog):
 
 def test_configure_logging_json(caplog):
     """Test that the json logging configuration works."""
-    ircstream.configure_logging("DEBUG", "json")
+    ircstream.configure_logging("json")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warn("this is a json log", key="value")
@@ -65,7 +65,7 @@ def test_configure_logging_json(caplog):
 def test_configure_logging_invalid():
     """Test that an invalid logging configuration does not work."""
     with pytest.raises(ValueError):
-        ircstream.configure_logging("DEBUG", "invalid")
+        ircstream.configure_logging("invalid")
 
 
 def test_main(monkeypatch, caplog):
@@ -89,11 +89,12 @@ def test_main(monkeypatch, caplog):
     mocked_start_socket = Mock(side_effect=OSError(98, "Address already in use"))
     monkeypatch.setattr(ircstream, "start", mocked_start_socket)
     caplog.clear()
+
     with pytest.raises(SystemExit) as exc:
         ircstream.main((args))
+
     assert exc.value.code < 0
-    assert len(caplog.records) == 1
-    assert "Address already in use" in caplog.records[0].message
+    assert "Address already in use" in caplog.records[-1].message
 
 
 def test_main_section_no_irc(tmp_path, monkeypatch, caplog):
@@ -110,11 +111,13 @@ def test_main_section_no_irc(tmp_path, monkeypatch, caplog):
     # regular start; ensure that at least the IRC server is being run
     mocked_start_noop = Mock(return_value=(Mock(), Mock()))
     monkeypatch.setattr(ircstream, "start", mocked_start_noop)
+    caplog.clear()
+
     with pytest.raises(SystemExit) as exc:
         ircstream.main((args))
+
     assert exc.value.code < 0
-    assert len(caplog.records) == 1
-    assert "Invalid configuration" in caplog.records[0].message
+    assert "Invalid configuration" in caplog.records[-1].message
 
 
 def test_main_section_no_optional(tmp_path, monkeypatch):

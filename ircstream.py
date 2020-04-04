@@ -958,11 +958,12 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def configure_logging(log_level: str, log_format: str = "plain") -> None:
+def configure_logging(log_format: str = "plain") -> None:
     """Configure logging parameters."""
-    logging.basicConfig(format="%(message)s", level=log_level)
+    logging.basicConfig(format="%(message)s", level=logging.WARNING)
 
     processors = [
+        structlog.stdlib.filter_by_level,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
     ]
@@ -1002,7 +1003,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     config = configparser.ConfigParser()
     config.read_file(options.config_file)
 
-    configure_logging(options.log_level, options.log_format)
+    configure_logging(options.log_format)
+    # only set e.g. INFO or DEBUG for our own loggers
+    structlog.get_logger("ircstream").setLevel(options.log_level)
     log = structlog.get_logger("ircstream.main")
     log.info("Starting IRCStream", config_file=options.config_file.name)
 
