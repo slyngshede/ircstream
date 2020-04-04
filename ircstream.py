@@ -104,6 +104,7 @@ class RPL(IRCNumeric):
     NAMREPLY = 353
     ENDOFNAMES = 366
     ENDOFBANLIST = 368
+    ENDOFWHOWAS = 369
     MOTD = 372
     MOTDSTART = 375
     ENDOFMOTD = 376
@@ -113,6 +114,7 @@ class RPL(IRCNumeric):
 class ERR(IRCNumeric):
     """Erroneous IRC ERR_* replies, as defined in RFCs."""
 
+    WASNOSUCHNICK = 406
     NOSUCHNICK = 401
     NOSUCHCHANNEL = 403
     CANNOTSENDTOCHAN = 404
@@ -492,6 +494,16 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         # nicklist and not nickmask, on purpose
         self.msg(RPL.ENDOFWHOIS, [nicklist, "End of /WHOIS list"])
+
+    def handle_whowas(self, params: List[str]) -> None:
+        """Handle the WHOWAS command."""
+        try:
+            nick = params[0]
+        except IndexError:
+            raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given")
+
+        self.msg(ERR.WASNOSUCHNICK, [nick, "There was no such nickname"])
+        self.msg(RPL.ENDOFWHOWAS, [nick, "End of WHOWAS"])
 
     def handle_nick(self, params: List[str]) -> None:
         """Handle the initial setting of the user's nickname and nick changes."""

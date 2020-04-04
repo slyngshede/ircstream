@@ -106,6 +106,21 @@ def test_whois(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
+def test_whowas(ircserver, ircclient):
+    """Test the WHOWAS command."""
+    ircclient.connection.whowas(ircserver.botname)
+    assert ircclient.expect("wasnosuchnick")
+    assert ircclient.expect("endofwhowas")
+
+    ircclient.connection.whowas("testsuite-bot")
+    assert ircclient.expect("wasnosuchnick")
+    assert ircclient.expect("endofwhowas")
+
+    ircclient.connection.whowas("")
+    assert ircclient.expect("nonicknamegiven")
+
+
+@pytest.mark.usefixtures("ircserver")
 def test_nick(ircclient):
     """Test the NICK command."""
     ircclient.connection.nick("")
