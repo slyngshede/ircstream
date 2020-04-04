@@ -2,13 +2,13 @@
 
 import pytest  # type: ignore
 
-from .ircclient import IRCClient
+from .ircclient import IRCClientThread
 
 
 @pytest.fixture(name="ircclient", scope="module")
 def ircclient_instance(ircserver):
     """Fixture for an instance of an IRCClient."""
-    ircclient = IRCClient()
+    ircclient = IRCClientThread()
     ircclient.start()
     ircclient.connect(ircserver.address, ircserver.port, "testsuite-bot")
 

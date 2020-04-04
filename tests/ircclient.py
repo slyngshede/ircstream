@@ -7,10 +7,10 @@ import irc.client  # type: ignore
 import irc.connection  # type: ignore
 
 
-class IRCClient(threading.Thread, irc.client.SimpleIRCClient):
+class IRCClientThread(threading.Thread, irc.client.SimpleIRCClient):
     """Basic IRC Client, used for testing.
 
-    This runs as a thread, and is thus processing events "asynchronously".
+    This is a subclass of Thread, processing events "asynchronously".
 
     The IRC implementation is third-party, but as far as this client goes,
     it's pretty dummy: it just shoves incoming events into a queue, and
