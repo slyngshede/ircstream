@@ -55,17 +55,28 @@ def test_premature_close2(clientsock):
     clientsock.close()
 
 
-@pytest.mark.usefixtures("ircserver")
-def test_ping_timeout(ircserver, clientsock):
-    """Test a PING timeout condition."""
+@pytest.fixture(name="ircserver_short_timeout")
+def fixture_ircserver_short_timeout(ircserver):
+    """Return an IRCServer modified to run with a very short timeout.
+
+    This is a separate fixture to make sure that the default value is restored
+    e.g. if the test fails.
+    """
     # save the old timeout
     default_timeout = ircserver.client_timeout
-
     # set timeout to a (much) smaller value, to avoid long waits while testing
     ircserver.client_timeout = 1
 
+    yield ircserver
+
+    # restore it to the default value
+    ircserver.client_timeout = default_timeout
+
+
+def test_ping_timeout(ircserver_short_timeout, clientsock):
+    """Test a PING timeout condition."""
     # wait at least until the ping timeout interval
-    time.sleep(ircserver.client_timeout)
+    time.sleep(ircserver_short_timeout.client_timeout)
 
     # try another 5 times for a total of another interval
     ping_timedout = False
@@ -80,9 +91,6 @@ def test_ping_timeout(ircserver, clientsock):
             assert False  # another unexpected message
 
     assert ping_timedout
-
-    # restore it to the default value
-    ircserver.client_timeout = default_timeout
 
 
 def test_preregister_command(clientsock):
