@@ -68,9 +68,17 @@ def test_configure_logging_invalid():
         ircstream.configure_logging("invalid")
 
 
-def test_main(monkeypatch, caplog):
-    """Test the main/entry point function (stock/shipper config)."""
-    args = ("--config", "ircstream.conf")
+def test_main(monkeypatch, tmp_path, caplog):
+    """Test the main/entry point function."""
+    tmp_config = tmp_path / "ircstream-regular.conf"
+    tmp_config.write_text(
+        """
+        [irc]
+        [rc2udp]
+        [prometheus]
+        """
+    )
+    args = ("--config", str(tmp_config))
 
     # regular start; ensure that at least the IRC server is being run
     mocked_start_noop = Mock(return_value=(Mock(), Mock()))
@@ -99,14 +107,14 @@ def test_main(monkeypatch, caplog):
 
 def test_main_section_no_irc(tmp_path, monkeypatch, caplog):
     """Test the main/entry point function (without an IRC config)."""
-    tmp_config = tmp_path / "ircstream.conf"
+    tmp_config = tmp_path / "ircstream-noirc.conf"
     tmp_config.write_text(
         """
         [rc2udp]
         [prometheus]
         """
     )
-    args = ("--config", str(tmp_config))  # stock/shipped config
+    args = ("--config", str(tmp_config))
 
     # regular start; ensure that at least the IRC server is being run
     mocked_start_noop = Mock(return_value=(Mock(), Mock()))
@@ -122,13 +130,13 @@ def test_main_section_no_irc(tmp_path, monkeypatch, caplog):
 
 def test_main_section_no_optional(tmp_path, monkeypatch):
     """Test the main/entry point function (without optional config)."""
-    tmp_config = tmp_path / "ircstream.conf"
+    tmp_config = tmp_path / "ircstream-nooptional.conf"
     tmp_config.write_text(
         """
         [irc]
         """
     )
-    args = ("--config", str(tmp_config))  # stock/shipped config
+    args = ("--config", str(tmp_config))
 
     # regular start; ensure that at least the IRC server is being run
     mocked_start_noop = Mock(return_value=(Mock(), Mock()))
