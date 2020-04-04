@@ -420,6 +420,11 @@ class IRCClient(socketserver.BaseRequestHandler):
         Ignore and do not send unknown command, per IRC v3.1/v3.2.
         """
 
+    def handle_pass(self, _: List[str]) -> None:  # pylint: disable=no-self-use
+        """Stub for the PASS command."""
+        if self.identified:
+            raise IRCError(ERR.ALREADYREGISTERED, "You may not reregister")
+
     def handle_who(self, params: List[str]) -> None:
         """Stub for the WHO command."""
         try:

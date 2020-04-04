@@ -127,10 +127,15 @@ def test_unicodeerror(ircserver, clientsock):
 def test_redundant(clientsock):
     """Test redundant parameters in commands that allow it."""
     # five arguments for USER
+    clientsock.sendall(b"PASS password\n")
     clientsock.sendall(b"USER one two three four redundant\n")
     clientsock.sendall(b"NICK nick\n")
     data = clientsock.readlines()
     assert any([b"001 nick" in response for response in data])
+
+    clientsock.sendall(b"PASS password\n")
+    data = clientsock.readlines()
+    assert any([b"462 nick :You may not reregister" in response for response in data])
 
     # two arguments for WHOIS
     clientsock.sendall(b"WHOIS nick second\n")
