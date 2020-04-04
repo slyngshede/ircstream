@@ -4,13 +4,15 @@ import pytest  # type: ignore
 
 from .ircclient import IRCClientThread
 
+BOTNAME = "testsuite-bot"
+
 
 @pytest.fixture(name="ircclient", scope="module")
 def ircclient_instance(ircserver):
     """Fixture for an instance of an IRCClient."""
     ircclient = IRCClientThread()
     ircclient.start()
-    ircclient.connect(ircserver.address, ircserver.port, "testsuite-bot")
+    ircclient.connect(ircserver.address, ircserver.port, BOTNAME)
 
     yield ircclient
 
@@ -48,7 +50,7 @@ def test_pong(ircserver, ircclient):
 @pytest.mark.usefixtures("ircserver")
 def test_who(ircclient):
     """Test the WHO command."""
-    ircclient.connection.who("testsuite-bot")
+    ircclient.connection.who(BOTNAME)
     assert ircclient.expect("endofwho")
 
     ircclient.connection.who()
@@ -72,10 +74,10 @@ def test_mode(ircserver, ircclient):
     assert ircclient.expect("chanoprivsneeded")
 
     # user modes
-    ircclient.connection.mode("testsuite-bot", "")
+    ircclient.connection.mode(BOTNAME, "")
     assert ircclient.expect("umodeis")
 
-    ircclient.connection.mode("testsuite-bot", "+r")
+    ircclient.connection.mode(BOTNAME, "+r")
     # (no response expected)
 
     ircclient.connection.mode(ircserver.botname, "")
@@ -93,7 +95,7 @@ def test_whois(ircserver, ircclient):
     assert ircclient.expect("whoisserver")
     assert ircclient.expect("whoisidle")
 
-    ircclient.connection.whois(["testsuite-bot"])
+    ircclient.connection.whois([BOTNAME])
     assert ircclient.expect("whoisuser")
     assert ircclient.expect("whoisserver")
     assert ircclient.expect("whoisidle")
@@ -112,7 +114,7 @@ def test_whowas(ircserver, ircclient):
     assert ircclient.expect("wasnosuchnick")
     assert ircclient.expect("endofwhowas")
 
-    ircclient.connection.whowas("testsuite-bot")
+    ircclient.connection.whowas(BOTNAME)
     assert ircclient.expect("wasnosuchnick")
     assert ircclient.expect("endofwhowas")
 
@@ -134,12 +136,12 @@ def test_nick(ircclient):
     assert ircclient.expect("nick", target="new-nick")
 
     # make sure the internal state of the server has also changed
-    ircclient.connection.whois(["testsuite-bot"])
+    ircclient.connection.whois([BOTNAME])
     assert ircclient.expect("nosuchnick")
 
     # change our nickname back (be nice to other tests)
-    ircclient.connection.nick("testsuite-bot")
-    assert ircclient.expect("nick", target="testsuite-bot")
+    ircclient.connection.nick(BOTNAME)
+    assert ircclient.expect("nick", target=BOTNAME)
 
 
 @pytest.mark.usefixtures("ircserver")
@@ -236,7 +238,7 @@ def test_privmsg(ircserver, ircclient):
     assert ircclient.expect("cannotsendtochan")
 
     # private messages
-    ircclient.connection.privmsg("testsuite-bot", "message")
+    ircclient.connection.privmsg(BOTNAME, "message")
     assert ircclient.expect("privmsg")
 
     ircclient.connection.privmsg("nonexistent", "message")
