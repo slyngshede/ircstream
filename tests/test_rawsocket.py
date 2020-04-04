@@ -12,18 +12,14 @@ from typing import Sequence
 import pytest  # type: ignore
 
 
-class LineSocket(socket.socket):
-    """Light wrapper around a socket."""
+class BareClient:  # pylint: disable=too-few-public-methods
+    """Bare client around socket operations to support a line-based protocol."""
 
     def __init__(self, address: str, port: int) -> None:
-        """Initialize the socket *and connect* (this is a bit hacky)."""
-        if ":" in address:
-            afi = socket.AF_INET6
-        else:
-            afi = socket.AF_INET
-        super().__init__(afi, socket.SOCK_STREAM)
-        self.connect((address, port))
-        self.settimeout(0.2)
+        """Initialize the socket *and connect*."""
+        self.sock = socket.create_connection((address, port), 0.2)
+        self.close = self.sock.close
+        self.sendall = self.sock.sendall
 
     def readlines(self) -> Sequence[bytes]:
         """Read and return all lines in input, until a timeout occurs."""
@@ -31,7 +27,7 @@ class LineSocket(socket.socket):
         # read all output until timed out
         while True:
             try:
-                msg = self.recv(1024)
+                msg = self.sock.recv(1024)
                 if not msg:  # EOF
                     break
             except socket.timeout:
@@ -41,9 +37,9 @@ class LineSocket(socket.socket):
 
 
 @pytest.fixture(name="clientsock")
-def clientsock_fixture(ircserver) -> LineSocket:
+def clientsock_fixture(ircserver) -> BareClient:
     """Return an instance of our fake/raw IRC client."""
-    return LineSocket(ircserver.address, ircserver.port)
+    return BareClient(ircserver.address, ircserver.port)
 
 
 def test_premature_close(clientsock):
@@ -67,9 +63,6 @@ def test_ping_timeout(ircserver, clientsock):
 
     # set timeout to a (much) smaller value, to avoid long waits while testing
     ircserver.client_timeout = 1
-
-    # connect
-    clientsock = LineSocket(ircserver.address, ircserver.port)
 
     # wait at least until the ping timeout interval
     time.sleep(ircserver.client_timeout)
