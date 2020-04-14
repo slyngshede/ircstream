@@ -41,6 +41,7 @@ limitations under the License.
 
 import argparse
 import configparser
+import dataclasses
 import datetime
 import enum
 import errno
@@ -131,6 +132,7 @@ class ERR(IRCNumeric):
     USERSDONTMATCH = 502
 
 
+@dataclasses.dataclass
 class IRCMessage:
     """Represents an RFC 1459/2681 message.
 
@@ -159,10 +161,9 @@ class IRCMessage:
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
     """
 
-    def __init__(self, command: str, params: Sequence[str], source: Optional[str] = None) -> None:
-        self.command = command
-        self.params = params
-        self.source = source
+    command: str
+    params: Sequence[str]
+    source: Optional[str] = None
 
     @classmethod
     def from_message(cls, message: str) -> IRCMessage:
@@ -216,10 +217,6 @@ class IRCMessage:
             components.append(" ".join(base))
 
         return " ".join(components)
-
-    def __repr__(self) -> str:
-        """Represent an IRCMessage; mainly used for debugging."""
-        return '<IRCMessage: "{0}">'.format(self.command)
 
 
 class IRCError(Exception):

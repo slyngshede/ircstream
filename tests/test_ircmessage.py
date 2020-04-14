@@ -9,11 +9,6 @@ import yaml
 TEST_DATA_DIR = Path("testdata")
 
 
-def test_repr():
-    """Test IRCMessage's repr() method."""
-    assert repr(IRCMessage("AWAY", ["reason"])) == '<IRCMessage: "AWAY">'
-
-
 def pytest_generate_tests(metafunc):
     """Generate test data fixtures from irc-parser-tests YAML files.
 
