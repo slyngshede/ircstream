@@ -34,10 +34,10 @@ class IRCMessageCounter(irc.client.SimpleIRCClient):
     """
 
     def __init__(self, channel: str, received: multiprocessing.Value, ready: multiprocessing.synchronize.Event) -> None:
-        irc.client.SimpleIRCClient.__init__(self)
         self.channel = channel
         self.ready = ready
         self.received = received
+        super().__init__()
 
     def connect(self, *args, **kwargs):
         """Override the method to add transparent IPv6 support."""
