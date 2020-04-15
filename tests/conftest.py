@@ -62,6 +62,14 @@ def fixture_ircserver(config):
     """
     # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
     prometheus_client.REGISTRY.__init__()
+
+    # set up a fake EXCEPTION command handler, that raises an exception
+    # useful to test whether exceptions are actually being caught!
+    def handle_raiseexc(self, params):
+        raise Exception("Purposefully triggered exception")
+
+    ircstream.IRCClient.handle_raiseexc = handle_raiseexc
+
     server, thread = ircstream.start(ircstream.IRCServer, config["irc"])
 
     yield server

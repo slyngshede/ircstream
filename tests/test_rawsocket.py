@@ -158,3 +158,17 @@ def test_redundant(clientsock):
     clientsock.sendall(b"WHOIS nick second\n")
     data = clientsock.readlines()
     assert any([b"401 nick second :No such nick/channel" in response for response in data])
+
+
+def test_exception(clientsock):
+    """Test whether our injected EXCEPTION handler works."""
+    # register
+    clientsock.sendall(b"USER one two three four\n")
+    clientsock.sendall(b"NICK nick\n")
+    data = clientsock.readlines()
+    assert any([b"001 nick" in response for response in data])
+
+    # needs registration
+    clientsock.sendall(b"RAISEEXC\n")
+    data = clientsock.readlines()
+    assert data and b"Internal server error" in data[-1]
