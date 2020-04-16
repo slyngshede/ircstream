@@ -101,6 +101,19 @@ def test_preregister_command(clientsock):
     assert b"451 * :You have not registered" in data[0]
 
 
+def test_erroneous(clientsock):
+    """Test erroneous parameters."""
+    clientsock.sendall(b"USER one two three four\n")
+
+    clientsock.sendall(b"NICK /invalid\n")
+    data = clientsock.readlines()
+    assert any([b"432 *" in response for response in data])
+
+    clientsock.sendall(b"NICK " + b"a" * 100 + b"\n")
+    data = clientsock.readlines()
+    assert any([b"432 *" in response for response in data])
+
+
 def test_unicodeerror(ircserver, clientsock):
     """Test for UnicodeError handling in both directions."""
     clientsock.sendall(b"USER one two three four\n")

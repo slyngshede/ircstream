@@ -401,6 +401,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def send(self, msg: str) -> None:
         """Send a message to a connected client."""
+        msg = msg[:510]  # 512 including CRLF; RFC 2813, section 3.3
         self.log.debug("Data sent", message=msg)
         try:
             self.request.sendall(msg.encode("utf8") + b"\r\n")
@@ -515,7 +516,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given")
 
         # is this a valid nickname?
-        if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick) or len(nick) < 2:
+        if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick) or len(nick) < 2 or len(nick) > 30:
             raise IRCError(ERR.ERRONEUSNICKNAME, [nick, "Erroneous nickname"])
 
         if not self.identified:
@@ -567,6 +568,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 "CASEMAPPING=rfc1459",
                 "CHANLIMIT=#:2000",
                 f"CHANMODES={','.join(cmodes)}",
+                "NICKLEN=30",
                 "CHANNELLEN=50",
                 "CHANTYPES=#",
                 "PREFIX=",
@@ -617,7 +619,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             channel = channel.strip()
 
             # is this a valid channel name?
-            if not re.match("^#([a-zA-Z0-9_.-])+$", channel):
+            if not re.match("^#([a-zA-Z0-9_.-])+$", channel) or len(channel) > 50:
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
 
             # add user to the channel (if the channel exists)
