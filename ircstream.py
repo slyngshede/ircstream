@@ -516,7 +516,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         # is this a valid nickname?
         if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick) or len(nick) < 2:
-            raise IRCError(ERR.ERRONEUSNICKNAME, [nick, "Erroneus nickname"])
+            raise IRCError(ERR.ERRONEUSNICKNAME, [nick, "Erroneous nickname"])
 
         if not self.identified:
             self.nick = nick
