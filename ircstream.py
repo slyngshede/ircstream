@@ -175,7 +175,11 @@ class IRCMessage:
             source = parts[0][1:]
             parts = parts[1:]
 
-        command = parts[0].upper()
+        try:
+            command = parts[0].upper()
+        except IndexError:
+            raise ValueError("Invalid IRC message (no command specified)")
+
         original_params = parts[1:]
         params = []
 
@@ -379,7 +383,12 @@ class IRCClient(socketserver.BaseRequestHandler):
             if not line:
                 return
             self.log.debug("Data received", message=line)
-            msg = IRCMessage.from_message(line)
+
+            try:
+                msg = IRCMessage.from_message(line)
+            except ValueError:
+                # ignore unparseable commands
+                return
 
             whitelisted = ("CAP", "PASS", "USER", "NICK", "QUIT", "PING", "PONG")
             if not self.identified and msg.command not in whitelisted:

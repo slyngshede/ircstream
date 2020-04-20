@@ -113,6 +113,10 @@ def test_erroneous(clientsock):
     data = clientsock.readlines()
     assert any([b"432 *" in response for response in data])
 
+    clientsock.sendall(b":NOCOMMAND\n")
+    data = clientsock.readlines()
+    assert data == []
+
 
 def test_unicodeerror(ircserver, clientsock):
     """Test for UnicodeError handling in both directions."""
