@@ -525,7 +525,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given")
 
         # is this a valid nickname?
-        if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick) or len(nick) < 2 or len(nick) > 30:
+        if not re.fullmatch(r"[\w\d\-\[\]'`\^{}_]+", nick) or len(nick) < 2 or len(nick) > 30:
             raise IRCError(ERR.ERRONEUSNICKNAME, [nick, "Erroneous nickname"])
 
         if not self.registered:
@@ -628,7 +628,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             channel = channel.strip()
 
             # is this a valid channel name?
-            if not re.match("^#([a-zA-Z0-9_.-])+$", channel) or len(channel) > 50:
+            if not re.fullmatch(r"#([\w\d_\.-])+", channel) or len(channel) > 50:
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
 
             # add user to the channel (if the channel exists)
