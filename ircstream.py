@@ -352,7 +352,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             raise self.Disconnect()
 
         # if it's N/2 seconds since the last PONG, send a PING
-        if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.identified:
+        if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.registered:
             self.msg("PING", self.server.servername)
             self.ping_sent = True
 
@@ -391,7 +391,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 return
 
             whitelisted = ("CAP", "PASS", "USER", "NICK", "QUIT", "PING", "PONG")
-            if not self.identified and msg.command not in whitelisted:
+            if not self.registered and msg.command not in whitelisted:
                 raise IRCError(ERR.NOTREGISTERED, "You have not registered")
 
             handler = getattr(self, f"handle_{msg.command.lower()}", None)
@@ -429,7 +429,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def handle_pass(self, _: List[str]) -> None:  # pylint: disable=no-self-use
         """Stub for the PASS command."""
-        if self.identified:
+        if self.registered:
             raise IRCError(ERR.ALREADYREGISTERED, "You may not reregister")
 
     def handle_who(self, params: List[str]) -> None:
@@ -528,7 +528,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         if re.search(r"[^a-zA-Z0-9\-\[\]'`^{}_]", nick) or len(nick) < 2 or len(nick) > 30:
             raise IRCError(ERR.ERRONEUSNICKNAME, [nick, "Erroneous nickname"])
 
-        if not self.identified:
+        if not self.registered:
             self.nick = nick
             if self.user:
                 self.end_registration()
@@ -590,7 +590,7 @@ class IRCClient(socketserver.BaseRequestHandler):
 
         self.server.add_client(self)
         self.log = self.log.bind(client_id=self.internal_ident)
-        self.log.info("Client identified")
+        self.log.info("Client registered")
 
     def handle_motd(self, _: List[str]) -> None:
         """Handle the MOTD command."""
@@ -773,14 +773,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         raise self.Disconnect()
 
     @property
-    def identified(self) -> bool:
-        """Return True if a user is identified; False otherwise."""
+    def registered(self) -> bool:
+        """Return True if a user is registered; False otherwise."""
         return bool(self.nick and self.user)
 
     @property
     def client_ident(self) -> str:
         """Return the client identifier as included in many command replies."""
-        if not self.identified:
+        if not self.registered:
             raise IRCError(ERR.NOTREGISTERED, "You have not registered")
         return f"{self.nick}!{self.user}@{self.server.servername}"
 
@@ -788,8 +788,8 @@ class IRCClient(socketserver.BaseRequestHandler):
     def internal_ident(self) -> str:
         """Return the internal (non-wire-protocol) client identifier."""
         host_port = f"[{self.host}]:{self.port}"
-        if not self.identified:
-            return f"unidentified/{host_port}"
+        if not self.registered:
+            return f"anonymous/{host_port}"
         return f"{self.nick}!{self.user}/{host_port}"
 
     def finish(self) -> None:
@@ -806,7 +806,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             self.server.remove_client(self)
         except KeyError:
-            pass  # was never added, e.g. if was never identified
+            pass  # was never added, e.g. if was never registered
         self.log.info("Connection finished")
 
     def __repr__(self) -> str:
