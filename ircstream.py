@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""IRCStream — Wikimedia RecentChanges → IRC gateway.
+"""IRCStream — MediaWiki RecentChanges → IRC gateway.
 
-This is a simple gateway to the Wikimedia recent changes feed, using the IRC
+This is a simple gateway to the MediaWiki recent changes feed, using the IRC
 protocol. It was written mainly for compatibility reasons, as there are a
 number of legacy clients in the wild relying on this interface.
 
@@ -976,7 +976,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     """Parse and return the parsed command line arguments."""
     parser = argparse.ArgumentParser(
         prog="ircstream",
-        description="Wikimedia RecentChanges → IRC gateway",
+        description="MediaWiki RecentChanges → IRC gateway",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(

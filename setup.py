@@ -11,7 +11,7 @@ setuptools.setup(
     py_modules=["ircstream"],
     maintainer="Faidon Liambotis",
     maintainer_email="faidon@wikimedia.org",
-    description="Wikimedia RC->IRC gateway",
+    description="MediaWiki RC->IRC gateway",
     url="https://github.com/wikimedia/ircstream",
     license="Apache2",
     packages=setuptools.find_packages(),
@@ -21,7 +21,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
         "Intended Audience :: System Administrators",
     ],
-    keywords=["irc", "wikimedia"],
+    keywords=["irc", "mediawiki", "wikimedia"],
     python_requires=">=3.7",
     install_requires=[
         "prometheus_client",
