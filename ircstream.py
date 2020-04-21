@@ -40,7 +40,6 @@ limitations under the License.
 """
 
 import argparse
-import collections
 import configparser
 import dataclasses
 import datetime
@@ -48,6 +47,8 @@ import enum
 import errno
 import http.server
 import logging
+import multiprocessing
+import queue
 import re
 import select
 import socket
@@ -56,7 +57,6 @@ import sys
 import threading
 from typing import (
     Any,
-    Deque,
     Dict,
     Iterable,
     List,
@@ -292,7 +292,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.ping_sent = False
         self.buffer = b""
         self.user, self.realname, self.nick = "", "", ""
-        self.send_queue: Deque[str] = collections.deque()  # thread-safe
+        self.send_queue: multiprocessing.Queue[str] = multiprocessing.Queue()
         self.channels: Dict[str, IRCChannel] = {}
 
         super().__init__(request, client_address, server)
@@ -338,16 +338,19 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def _handle_one(self) -> None:
         """Handle one read/write cycle."""
-        # provide an up-to-100ms guarantee for broadcast messages
-        ready_to_read, _, in_error = select.select([self.request], [], [self.request], 0.1)
+        fds = [self.request, self.send_queue._reader]
+        ready_to_read, _, in_error = select.select(fds, [], fds, 1)
 
         if in_error:
             raise self.Disconnect()
 
         # write any queued messages to the client
-        while self.send_queue:
-            msg = self.send_queue.popleft()
-            self._send(msg)
+        while True:
+            try:
+                msg = self.send_queue.get_nowait()
+                self._send(msg)
+            except queue.Empty:
+                break
 
         # see if the client has any messages for us
         if self.request in ready_to_read:
@@ -920,7 +923,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         channel = self.get_channel(target, create=True)
         for client in channel.members():
             try:
-                client.send_queue.append(str(message))
+                client.send_queue.put(str(message))
             except Exception:  # pylint: disable=broad-except
                 self.metrics["errors"].labels("broadcast").inc()
                 self.log.debug("Unable to broadcast", exc_info=True)
