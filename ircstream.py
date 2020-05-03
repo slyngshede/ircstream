@@ -42,12 +42,14 @@ limitations under the License.
 import argparse
 import collections
 import configparser
+import ctypes
 import dataclasses
 import datetime
 import enum
 import errno
 import http.server
 import logging
+import os
 import re
 import selectors
 import socket
@@ -292,7 +294,14 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.ping_sent = False
         self.buffer = b""
         self.selector = getattr(selectors, "PollSelector", selectors.SelectSelector)()
-        self.send_queue: Deque[str] = collections.deque(maxlen=500)  # thread-safe
+        self.send_queue: Deque[str] = collections.deque(maxlen=500)
+        try:
+            self.eventfd = ctypes.CDLL("libc.so.6").eventfd(0, None)
+            os.set_blocking(self.eventfd, False)  # protect from coding errors
+            self.selector.register(self.eventfd, selectors.EVENT_READ)
+        except (OSError, AttributeError, ValueError):
+            self.eventfd = None
+            self.log.debug("The eventfd() syscall is not supported in this system")
 
         self.user, self.realname, self.nick = "", "", ""
         self.channels: Dict[str, IRCChannel] = {}
@@ -334,14 +343,17 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.selector.register(self.request, selectors.EVENT_READ)
         try:
             while True:
-                # provide an up-to-100ms guarantee for broadcast messages
-                ready = self.selector.select(0.1)
+                # event-triggered if possible, otherwise wake up every 100ms
+                poll_timeout = min(10, self.server.client_timeout / 2) if self.eventfd else 0.1
+                ready = self.selector.select(poll_timeout)
                 ready_fds = [item[0].fileobj for item in ready]
 
                 # send pings or timeout
                 self._handle_timeout()
 
-                # write any queued messages to the client
+                # clear the event and write any queued messages to the client
+                if self.eventfd in ready_fds:
+                    os.read(self.eventfd, 8)
                 self._flush_send_queue()
 
                 # see if the client has any messages for us
@@ -349,11 +361,14 @@ class IRCClient(socketserver.BaseRequestHandler):
                     self._handle_incoming()
         except self.Disconnect:
             self.request.close()
+        finally:
+            if self.eventfd:
+                os.close(self.eventfd)
 
     def _handle_timeout(self) -> None:
         """Send PINGs and check for ping timeouts."""
         timeout = self.server.client_timeout
-        # if we haven't heard in N seconds, disconnect
+        # if we haven't heard from the client in N seconds, disconnect
         delta = datetime.datetime.utcnow() - self.last_heard
         if delta > datetime.timedelta(seconds=timeout):
             self.msg("ERROR", "Closing Link: (Ping timeout)")
@@ -428,6 +443,14 @@ class IRCClient(socketserver.BaseRequestHandler):
             if exc.errno == errno.EPIPE:
                 raise self.Disconnect()
             raise
+
+    def send_async(self, msg: str) -> None:
+        """Send asynchronously, using the send queue. Does not block."""
+        # append to the queue (thread-safe operation)
+        self.send_queue.append(msg)
+        # trigger the queue consumer
+        if self.eventfd:
+            os.write(self.eventfd, (1).to_bytes(8, sys.byteorder))  # write "1" as 8-byte integer
 
     def _flush_send_queue(self) -> None:
         """Flush the send_queue to the client. May block."""
@@ -925,7 +948,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         channel = self.get_channel(target, create=True)
         for client in channel.members():
             try:
-                client.send_queue.append(str(message))
+                client.send_async(str(message))
             except Exception:  # pylint: disable=broad-except
                 self.metrics["errors"].labels("broadcast").inc()
                 self.log.debug("Unable to broadcast", exc_info=True)

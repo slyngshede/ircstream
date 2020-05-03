@@ -5,6 +5,7 @@ invalid commands, not respond to PING etc., so emulate the IRC protocol
 manually, using a raw socket.
 """
 
+import ctypes
 import socket
 import time
 from typing import Sequence
@@ -40,6 +41,21 @@ class BareClient:  # pylint: disable=too-few-public-methods
 def clientsock_fixture(ircserver) -> BareClient:
     """Return an instance of our fake/raw IRC client."""
     return BareClient(ircserver.address, ircserver.port)
+
+
+def test_no_eventfd(monkeypatch, ircserver):
+    """Test codepaths where eventfd() is not available."""
+    with monkeypatch.context() as mpcontext:
+        # pretend ctypes.CDLL("libc.so.6") failed
+        mpcontext.delattr(ctypes, "CDLL", raising=True)
+
+        # don't use the fixture, as it would connect before we had a chance to monkey patch
+        clientsock = BareClient(ircserver.address, ircserver.port)
+
+        clientsock.sendall(b"NICK nick\n")
+        clientsock.sendall(b"USER one two three four\n")
+        data = clientsock.readlines()
+        assert any([b"001 nick" in response for response in data])
 
 
 def test_premature_close(clientsock):
