@@ -49,7 +49,7 @@ import errno
 import http.server
 import logging
 import re
-import select
+import selectors
 import socket
 import socketserver
 import sys
@@ -291,8 +291,10 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.last_heard = self.signon
         self.ping_sent = False
         self.buffer = b""
-        self.user, self.realname, self.nick = "", "", ""
+        self.selector = getattr(selectors, "PollSelector", selectors.SelectSelector)()
         self.send_queue: Deque[str] = collections.deque()  # thread-safe
+
+        self.user, self.realname, self.nick = "", "", ""
         self.channels: Dict[str, IRCChannel] = {}
 
         super().__init__(request, client_address, server)
@@ -328,31 +330,28 @@ class IRCClient(socketserver.BaseRequestHandler):
     def handle(self) -> None:
         """Handle a new connection from a client."""
         self.log.info("Client connected")
-        self.buffer = b""
 
+        self.selector.register(self.request, selectors.EVENT_READ)
         try:
             while True:
-                self._handle_one()
+                # provide an up-to-100ms guarantee for broadcast messages
+                ready = self.selector.select(0.1)
+                ready_fds = [item[0].fileobj for item in ready]
+
+                # send pings or timeout
+                self._handle_timeout()
+
+                # write any queued messages to the client
+                self._flush_send_queue()
+
+                # see if the client has any messages for us
+                if self.request in ready_fds:
+                    self._handle_incoming()
         except self.Disconnect:
             self.request.close()
 
-    def _handle_one(self) -> None:
-        """Handle one read/write cycle."""
-        # provide an up-to-100ms guarantee for broadcast messages
-        ready_to_read, _, in_error = select.select([self.request], [], [self.request], 0.1)
-
-        if in_error:
-            raise self.Disconnect()
-
-        # write any queued messages to the client
-        while self.send_queue:
-            msg = self.send_queue.popleft()
-            self._send(msg)
-
-        # see if the client has any messages for us
-        if self.request in ready_to_read:
-            self._handle_incoming()
-
+    def _handle_timeout(self) -> None:
+        """Send PINGs and check for ping timeouts."""
         timeout = self.server.client_timeout
         # if we haven't heard in N seconds, disconnect
         delta = datetime.datetime.utcnow() - self.last_heard
@@ -429,6 +428,12 @@ class IRCClient(socketserver.BaseRequestHandler):
             if exc.errno == errno.EPIPE:
                 raise self.Disconnect()
             raise
+
+    def _flush_send_queue(self) -> None:
+        """Flush the send_queue to the client. May block."""
+        while self.send_queue:
+            msg = self.send_queue.popleft()
+            self._send(msg)
 
     def handle_cap(self, params: List[str]) -> None:  # pylint: disable=no-self-use
         """Stub for the CAP (capability) command.
