@@ -9,6 +9,9 @@ import ctypes
 import socket
 import time
 from typing import Sequence
+from unittest.mock import Mock
+
+import ircstream
 
 import pytest  # type: ignore
 
@@ -155,6 +158,28 @@ def test_unicodeerror(ircserver, clientsock):
     ircserver.broadcast("#channel", unencodeable_utf8)
     data = clientsock.readlines()
     assert data == []
+
+
+def test_broadcast_failure(monkeypatch, clientsock, ircserver):
+    """Test that exceptions in the broadcast() method are handled."""
+    # login to the client (normal)
+    clientsock.sendall(b"USER one two three four\n")
+    clientsock.sendall(b"NICK nick\n")
+    data = clientsock.readlines()
+    assert any([b"001 nick" in response for response in data])
+
+    # create and join a channel (also normal)
+    ircserver.broadcast("#channel", "create the channel")
+    clientsock.sendall(b"JOIN #channel\n")
+    data = clientsock.readlines()
+    assert any([b"JOIN #channel" in response for response in data])
+
+    # ...and now actually test
+    with monkeypatch.context() as mpcontext:
+        mocked_send_async = Mock(side_effect=OSError("dummy"))
+        mpcontext.setattr(ircstream.IRCClient, "send_async", mocked_send_async)
+
+        ircserver.broadcast("#channel", "should fail silently")
 
 
 def test_redundant(clientsock):
