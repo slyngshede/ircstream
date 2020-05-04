@@ -292,7 +292,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.ping_sent = False
         self.buffer = b""
         self.selector = getattr(selectors, "PollSelector", selectors.SelectSelector)()
-        self.send_queue: Deque[str] = collections.deque()  # thread-safe
+        self.send_queue: Deque[str] = collections.deque(maxlen=500)  # thread-safe
 
         self.user, self.realname, self.nick = "", "", ""
         self.channels: Dict[str, IRCChannel] = {}
