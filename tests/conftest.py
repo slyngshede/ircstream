@@ -1,6 +1,7 @@
 """Testing initialization."""
 
 import configparser
+import threading
 
 import ircstream
 
@@ -70,7 +71,9 @@ def fixture_ircserver(config):
 
     ircstream.IRCClient.handle_raiseexc = handle_raiseexc
 
-    server, thread = ircstream.start(ircstream.IRCServer, config["irc"])
+    server = ircstream.IRCServer(config["irc"])
+    thread = threading.Thread(name="fixture_ircserver", target=server.serve_forever)
+    thread.start()
 
     yield server
 

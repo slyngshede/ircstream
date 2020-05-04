@@ -1,6 +1,7 @@
 """Tests for the Prometheus server."""
 
 import http.client
+import threading
 
 import ircstream
 
@@ -13,7 +14,9 @@ def fixture_prometheus_server(config):
 
     This spawns a thread to run the server. It yields the instance.
     """
-    server, thread = ircstream.start(ircstream.PrometheusServer, config["prometheus"])
+    server = ircstream.PrometheusServer(config["prometheus"])
+    thread = threading.Thread(name="fixture_prometheus_server", target=server.serve_forever)
+    thread.start()
 
     yield server
 
