@@ -60,12 +60,33 @@ class IRCMessageCounter(irc.client.SimpleIRCClient):
 
 
 @pytest.fixture(name="main")
-def fixture_main():
+def fixture_main(tmp_path):
     """Fixture for ircstream.main, running it in a thread."""
     # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
     prometheus_client.REGISTRY.__init__()
 
-    args = ("--config", "ircstream.conf")  # stock config, listens to 6667 etc.
+    # test a semi-stock config, with default ports etc.
+    tmp_config = tmp_path / "ircstream-integration.conf"
+    tmp_config.write_text(
+        """
+        [irc]
+        servername = irc.example.org
+        network = Example
+        botname = rc-bot
+        topic_tmpl = Test topic for {channel}
+        welcome_msg =
+          *******************************************************
+          This is a test IRC instance
+          *******************************************************
+          Sending messages to channels is not allowed.
+
+        [rc2udp]
+
+        [prometheus]
+        """
+    )
+    args = ("--config", str(tmp_config))
+
     main = threading.Thread(target=ircstream.main, args=(args,), daemon=True)
     main.start()
     time.sleep(0.1)
