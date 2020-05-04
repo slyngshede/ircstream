@@ -1043,7 +1043,8 @@ def configure_logging(log_format: str = "plain") -> None:
 def start(cls: type, config: configparser.SectionProxy, *args: Any) -> Tuple[socketserver.BaseServer, threading.Thread]:
     """Start a socket server, and their associated thread to server requests."""
     server = cls(config, *args)
-    thread = threading.Thread(name=config.name, target=server.serve_forever, daemon=True)
+    # do not poll every 500ms for a shutdown signal, as we don't ever trigger it
+    thread = threading.Thread(name=config.name, target=server.serve_forever, args=(None,), daemon=True)
     thread.start()
     return (server, thread)
 
