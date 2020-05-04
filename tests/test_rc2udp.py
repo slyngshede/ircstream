@@ -10,6 +10,8 @@ import prometheus_client  # type: ignore
 
 import pytest  # type: ignore
 
+from .conftest import start_server_in_thread
+
 
 class MockIRCServer:
     """Mocks the IRCServer object.
@@ -46,15 +48,7 @@ def fixture_rc2udp_server(config):
     This spawns a thread to run the server. It yields the instance.
     """
     mock_ircserver = MockIRCServer()
-    server = ircstream.RC2UDPServer(config["rc2udp"], mock_ircserver)  # type: ignore
-    thread = threading.Thread(name="fixture_rc2udp_server", target=server.serve_forever)
-    thread.start()
-
-    yield server
-
-    server.shutdown()
-    thread.join()
-    server.server_close()
+    yield from start_server_in_thread(ircstream.RC2UDPServer, config["rc2udp"], mock_ircserver)  # type: ignore
 
 
 def send_datagram(address: str, port: int, data: bytes) -> None:

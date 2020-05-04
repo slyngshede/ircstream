@@ -12,6 +12,19 @@ import pytest  # type: ignore
 import structlog  # type: ignore
 
 
+def start_server_in_thread(cls, config, *args):
+    """Start a socketserver in a thread, yield, and cleanly shut it down."""
+    server = cls(config, *args)
+    thread = threading.Thread(name=config.name, target=server.serve_forever)
+    thread.start()
+
+    yield server
+
+    server.shutdown()
+    thread.join()
+    server.server_close()
+
+
 @pytest.fixture(autouse=True)
 def fixture_configure_structlog() -> None:
     """Fixture to configure structlog. Currently just silences it entirely."""
@@ -70,13 +83,4 @@ def fixture_ircserver(config):
         raise Exception("Purposefully triggered exception")
 
     ircstream.IRCClient.handle_raiseexc = handle_raiseexc
-
-    server = ircstream.IRCServer(config["irc"])
-    thread = threading.Thread(name="fixture_ircserver", target=server.serve_forever)
-    thread.start()
-
-    yield server
-
-    server.shutdown()
-    thread.join()
-    server.server_close()
+    yield from start_server_in_thread(ircstream.IRCServer, config["irc"])
