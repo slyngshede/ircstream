@@ -1020,7 +1020,7 @@ def start(cls: type, config: configparser.SectionProxy, *args: Any) -> Tuple[soc
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Entry point."""
     options = parse_args(argv)
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(strict=True)
     config.read_file(options.config_file)
 
     configure_logging(options.log_format)
