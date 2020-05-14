@@ -339,6 +339,7 @@ class IRCClient(socketserver.BaseRequestHandler):
     def handle(self) -> None:
         """Handle a new connection from a client."""
         self.log.info("Client connected")
+        self.server.metrics["clients"].inc()
 
         self.selector.register(self.request, selectors.EVENT_READ)
         try:
@@ -625,7 +626,6 @@ class IRCClient(socketserver.BaseRequestHandler):
         self.msg(RPL.UMODEIS, "+i")
         self.handle_motd([])
 
-        self.server.add_client(self)
         self.log = self.log.bind(client_id=self.internal_ident)
         self.log.info("Client registered")
 
@@ -840,10 +840,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         for channel in self.channels.values():
             channel.remove_member(self)
 
-        try:
-            self.server.remove_client(self)
-        except KeyError:
-            pass  # was never added, e.g. if was never registered
+        self.server.metrics["clients"].dec()
         self.log.info("Connection finished")
 
     def __repr__(self) -> str:
@@ -890,8 +887,6 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
 
         self.boot_time = datetime.datetime.utcnow()
         self._channels: Dict[str, IRCChannel] = {}
-        self._clients: Set[IRCClient] = set()
-        self._clients_lock = threading.Lock()
         self.client_timeout = 120
 
         # set up a few Prometheus metrics
@@ -901,7 +896,6 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
             "messages": prometheus_client.Counter("ircstream_messages", "Count of RC messages broadcasted"),
             "errors": prometheus_client.Counter("ircstream_errors", "Count of errors and exceptions", ["type"]),
         }
-        self.metrics["clients"].set_function(lambda: len(self._clients))
         self.metrics["channels"].set_function(lambda: len(self._channels))
 
         listen_address = config.get("listen_address", fallback="::")
@@ -926,16 +920,6 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
     def channels(self) -> Iterable[str]:
         """Return a list of all the server channel names."""
         return self._channels.keys()
-
-    def add_client(self, client: IRCClient) -> None:
-        """Add a client to the client list (race-free)."""
-        with self._clients_lock:
-            self._clients.add(client)
-
-    def remove_client(self, client: IRCClient) -> None:
-        """Remove a client from the client list (race-free)."""
-        with self._clients_lock:
-            self._clients.remove(client)
 
     def broadcast(self, target: str, msg: str) -> None:
         """Broadcast a message to all clients that have joined a channel.
