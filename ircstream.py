@@ -888,13 +888,13 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         The source of the message is the bot's name.
         """
         botid = self.botname + "!" + self.botname + "@" + self.servername
-        message = IRCMessage("PRIVMSG", [target, msg], source=botid)
+        message = str(IRCMessage("PRIVMSG", [target, msg], source=botid))
 
         with self._channels_lock:
             clients = self._channels.setdefault(target, set())
             for client in clients:
                 try:
-                    client.send_async(str(message))
+                    client.send_async(message)
                 except Exception:  # pylint: disable=broad-except
                     self.metrics["errors"].labels("broadcast").inc()
                     self.log.debug("Unable to broadcast", exc_info=True)
