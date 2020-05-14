@@ -236,37 +236,6 @@ class IRCError(Exception):
         self.params = params
 
 
-class IRCChannel:
-    """Represents an IRC channel."""
-
-    def __init__(self, name: str) -> None:
-        self.name = name
-        self._clients: Set[IRCClient] = set()
-        self._lock = threading.Lock()
-
-    def add_member(self, client: IRCClient) -> None:
-        """Add a client to the channel (race-free)."""
-        with self._lock:
-            self._clients.add(client)
-
-    def remove_member(self, client: IRCClient) -> None:
-        """Remove a client from a channel (race-free).
-
-        No-op if they weren't there already.
-        """
-        with self._lock:
-            try:
-                self._clients.remove(client)
-            except KeyError:
-                pass
-
-    def members(self) -> Iterable[IRCClient]:
-        """List the clients in the channel."""
-        with self._lock:
-            clients = list(self._clients)
-        return clients
-
-
 class IRCClient(socketserver.BaseRequestHandler):
     """IRC client connect and command handling.
 
@@ -304,7 +273,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.log.debug("The eventfd() syscall is not supported in this system")
 
         self.user, self.realname, self.nick = "", "", ""
-        self.channels: Dict[str, IRCChannel] = {}
+        self.channels: Set[str] = set()
 
         super().__init__(request, client_address, server)
 
@@ -668,15 +637,12 @@ class IRCClient(socketserver.BaseRequestHandler):
             if not re.fullmatch(r"#([\w\d_\.-])+", channel) or len(channel) > 50:
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
 
-            # add user to the channel (if the channel exists)
-            try:
-                channelobj = self.server.get_channel(channel)
-            except KeyError:
+            # check if channel already exists (clients cannot create channels)
+            if channel not in self.server.channels:
                 raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
-            channelobj.add_member(self)
 
-            # add channel to user's channel list
-            self.channels[channelobj.name] = channelobj
+            self.server.subscribe(channel, self)  # add to the server's (global) list
+            self.channels.add(channel)  # add channel to client's own channel list
 
             # send join message
             self.msg("JOIN", channel)
@@ -775,8 +741,8 @@ class IRCClient(socketserver.BaseRequestHandler):
         for channel in channels.split(","):
             channel = channel.strip()
             if channel in self.channels:
-                channelobj = self.channels.pop(channel)
-                channelobj.remove_member(self)
+                self.channels.remove(channel)  # remove from client's own channel list
+                self.server.unsubscribe(channel, self)  # unsubscribe from the server's (global) list
                 self.msg("PART", channel)
                 self.log.info("User unsubscribed from feed", channel=channel)
             else:
@@ -799,9 +765,6 @@ class IRCClient(socketserver.BaseRequestHandler):
 
     def handle_quit(self, params: List[str]) -> None:
         """Handle the client breaking off the connection with a QUIT command."""
-        for channel in self.channels.values():
-            channel.remove_member(self)
-
         try:
             reason = params[0]
         except IndexError:
@@ -836,12 +799,10 @@ class IRCClient(socketserver.BaseRequestHandler):
         channel or the client list, in case the client didn't properly close
         the connection with PART and QUIT.
         """
-        self.log.info("Client disconnected")
-        for channel in self.channels.values():
-            channel.remove_member(self)
-
+        for channel in self.channels:
+            self.server.unsubscribe(channel, self)
         self.server.metrics["clients"].dec()
-        self.log.info("Connection finished")
+        self.log.info("Client disconnected")
 
     def __repr__(self) -> str:
         """Return a user-readable description of the client."""
@@ -886,7 +847,8 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         self.welcome_msg = config.get("welcome_msg", "Welcome!")
 
         self.boot_time = datetime.datetime.utcnow()
-        self._channels: Dict[str, IRCChannel] = {}
+        self._channels: Dict[str, Set[IRCClient]] = {}
+        self._channels_lock = threading.Lock()
         self.client_timeout = 120
 
         # set up a few Prometheus metrics
@@ -904,22 +866,21 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
         self.log.info("Listening for IRC clients", listen_address=self.address, listen_port=self.port)
 
-    def get_channel(self, name: str, create: bool = False) -> IRCChannel:
-        """Return an IRCChannel instance for the given channel name.
+    def subscribe(self, channel: str, client: IRCClient) -> None:
+        """Subscribe a client to broadcasts for a particular channel."""
+        with self._channels_lock:
+            self._channels[channel].add(client)
 
-        Creates one if asked and if necessary, in a race-free way.
-        """
-        if create:
-            # setdefault() is thread-safe, cf. issue 13521
-            return self._channels.setdefault(name, IRCChannel(name))
-        else:
-            # can raise KeyError
-            return self._channels[name]
+    def unsubscribe(self, channel: str, client: IRCClient) -> None:
+        """Unsubscribe a client from broadcasts for a particular channel."""
+        with self._channels_lock:
+            self._channels[channel].remove(client)
 
     @property
     def channels(self) -> Iterable[str]:
-        """Return a list of all the server channel names."""
-        return self._channels.keys()
+        """Return a list of all the channel names known to the server."""
+        with self._channels_lock:
+            return list(self._channels)
 
     def broadcast(self, target: str, msg: str) -> None:
         """Broadcast a message to all clients that have joined a channel.
@@ -929,15 +890,15 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         botid = self.botname + "!" + self.botname + "@" + self.servername
         message = IRCMessage("PRIVMSG", [target, msg], source=botid)
 
-        channel = self.get_channel(target, create=True)
-        for client in channel.members():
-            try:
-                client.send_async(str(message))
-            except Exception:  # pylint: disable=broad-except
-                self.metrics["errors"].labels("broadcast").inc()
-                self.log.debug("Unable to broadcast", exc_info=True)
-                # ignore exceptions, to catch races and other corner cases
-                continue
+        with self._channels_lock:
+            clients = self._channels.setdefault(target, set())
+            for client in clients:
+                try:
+                    client.send_async(str(message))
+                except Exception:  # pylint: disable=broad-except
+                    self.metrics["errors"].labels("broadcast").inc()
+                    self.log.debug("Unable to broadcast", exc_info=True)
+                    continue  # ignore exceptions, to catch corner cases
         self.metrics["messages"].inc()
 
 
