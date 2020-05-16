@@ -6,7 +6,7 @@ from ircstream import IRCMessage
 
 import yaml
 
-TEST_DATA_DIR = Path("testdata")
+TEST_DATA_DIR = Path("tests") / Path("data")
 
 
 def pytest_generate_tests(metafunc):

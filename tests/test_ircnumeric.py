@@ -12,7 +12,7 @@ try:
 except ImportError:
     from yaml import SafeLoader  # type: ignore
 
-TEST_NUMERICS_YAML = Path("testdata") / "numerics.yaml"
+TEST_NUMERICS_YAML = Path("tests") / Path("data") / "numerics.yaml"
 
 
 def test_numeric() -> None:
