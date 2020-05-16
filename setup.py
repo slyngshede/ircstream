@@ -4,15 +4,30 @@
 import setuptools  # type: ignore
 
 
-with open("README.md", "r") as readme:
-    LONG_DESCRIPTION = readme.read()
+def get_long_description() -> str:
+    """Fetch the long description from README.md."""
+    with open("README.md", "r") as readme:
+        return readme.read()
+
+
+def get_version() -> str:
+    """Fetch the version from the __version__ string in the code.
+
+    To be replaced by importlib.metadata when we move to Python 3.8 (PEP 566).
+    """
+    with open("ircstream.py", "r") as code:
+        for line in code.readlines():
+            if line.startswith("__version__"):
+                delim = '"' if '"' in line else "'"
+                return line.split(delim)[1]
+        raise RuntimeError("Unable to find version string.")
 
 
 setuptools.setup(
     name="ircstream",
-    long_description=LONG_DESCRIPTION,
+    version=get_version(),
+    long_description=get_long_description(),
     long_description_content_type="text/markdown",
-    version="0.9.0",
     py_modules=["ircstream"],
     maintainer="Faidon Liambotis",
     maintainer_email="faidon@wikimedia.org",
