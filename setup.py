@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Package configuration."""
-# fmt: off
 
 import setuptools  # type: ignore
 
 
+with open("README.md", "r") as readme:
+    LONG_DESCRIPTION = readme.read()
+
+
 setuptools.setup(
     name="ircstream",
+    long_description=LONG_DESCRIPTION,
+    long_description_content_type="text/markdown",
     version="0.9.0",
     py_modules=["ircstream"],
     maintainer="Faidon Liambotis",
@@ -23,6 +28,7 @@ setuptools.setup(
     ],
     keywords=["irc", "mediawiki", "wikimedia"],
     python_requires=">=3.7",
+    # fmt: off
     install_requires=[
         "prometheus_client",
         "structlog",
@@ -32,5 +38,6 @@ setuptools.setup(
             "ircstream = ircstream:main",
         ],
     },
+    # fmt: on
     zip_safe=False,
 )

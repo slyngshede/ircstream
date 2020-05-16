@@ -1,18 +1,9 @@
 #!/usr/bin/env python3
 """IRCStream — MediaWiki RecentChanges → IRC gateway.
 
-This is a simple gateway to the MediaWiki recent changes feed, using the IRC
-protocol. It was written mainly for compatibility reasons, as there are a
+IRCStream is a simple gateway to the MediaWiki recent changes feed, from the
+IRC protocol. It was written mainly for compatibility reasons, as there are a
 number of legacy clients in the wild relying on this interface.
-
-This software presents itself as an IRC server, but only supports a restricted
-command set. Sending messages to channels or other clients is not allowed. Each
-client is within a private namespace, unable to view messages and interact with
-other connected clients, create channels, or speak on them.
-
-Other clients are not even viewable on channel lists, /who etc. The sole
-exception is a (fake) bot user, that emits the recent changes feed, and which
-is also embedded in the server (i.e. it's not a real client).
 """
 
 from __future__ import annotations
