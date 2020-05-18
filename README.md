@@ -1,5 +1,7 @@
 # IRCStream
 
+![build](https://github.com/paravoid/ircstream/workflows/build/badge.svg)
+
 **IRCStream** is a simple gateway to the [MediaWiki](https://www.mediawiki.org/) recent changes feed, from the IRC
 protocol. It was written mainly for compatibility reasons, as there are a number of legacy clients in the wild relying
 on this interface.
