@@ -953,13 +953,8 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
         description="MediaWiki RecentChanges → IRC gateway",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "--config-file",
-        "-c",
-        default="/etc/ircstream.conf",
-        type=argparse.FileType("r"),
-        help="Path to configuration file",
-    )
+    parser.add_argument("--config-file", "-c", default="/etc/ircstream.conf", help="Path to configuration file")
+
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
     parser.add_argument("--log-level", default="INFO", choices=log_levels, type=str.upper, help="Log level")
     log_formats = ("plain", "console", "json")
@@ -1011,20 +1006,30 @@ def start(cls: type, config: configparser.SectionProxy, *args: Any) -> Tuple[soc
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Entry point."""
     options = parse_args(argv)
-    config = configparser.ConfigParser(strict=True)
-    config.read_file(options.config_file)
 
     configure_logging(options.log_format)
     # only set e.g. INFO or DEBUG for our own loggers
     structlog.get_logger("ircstream").setLevel(options.log_level)
     log = structlog.get_logger("ircstream.main")
-    log.info("Starting IRCStream", config_file=options.config_file.name)
+    log.info("Starting IRCStream", config_file=options.config_file)
+
+    config = configparser.ConfigParser(strict=True)
+    try:
+        with open(options.config_file) as config_fh:
+            config.read_file(config_fh)
+    except OSError as exc:
+        log.critical(f"Cannot open configuration file: {exc.strerror}", errno=errno.errorcode[exc.errno])
+        raise SystemExit(-1)
+    except configparser.Error as exc:
+        msg = repr(exc).replace("\n", " ")  # configparser exceptions sometimes include newlines
+        log.critical(f"Invalid configuration, {msg}")
+        raise SystemExit(-1)
 
     try:
         if "irc" in config:
             ircserver, ircthread = start(IRCServer, config["irc"])
         else:
-            log.critical("Invalid configuration, missing section", section="irc")
+            log.critical('Invalid configuration, missing section "irc"')
             raise SystemExit(-1)
 
         if "rc2udp" in config:

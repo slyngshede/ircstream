@@ -20,17 +20,6 @@ def test_parse_args_help(capsys):
     assert "usage: " in out
 
 
-def test_config_nonexistent(capsys):
-    """Test with non-existing configuration directories."""
-    not_a_file = "/nonexistent"
-    with pytest.raises(SystemExit) as exc:
-        ircstream.parse_args(["--config-file", not_a_file])
-
-    assert exc.value.code != 0
-    _, err = capsys.readouterr()
-    assert "No such file or directory" in err
-
-
 def test_configure_logging_plain(caplog):
     """Test that the plain logging configuration works."""
     ircstream.configure_logging("plain")
@@ -105,22 +94,30 @@ def test_main(monkeypatch, tmp_path, caplog):
     assert "Address already in use" in caplog.records[-1].message
 
 
-def test_main_section_no_irc(tmp_path, monkeypatch, caplog):
+def test_main_config_nonexistent(caplog):
+    """Test with non-existing configuration."""
+    args = ("--config", "/nonexistent")
+
+    caplog.clear()
+    with pytest.raises(SystemExit) as exc:
+        ircstream.main((args))
+
+    assert exc.value.code < 0
+    assert "No such file or directory" in caplog.records[-1].message
+
+
+@pytest.mark.parametrize("test_config", ["[rc2udp]\n[prometheus]\n", "invalid config"])
+def test_main_config_invalid(tmp_path, monkeypatch, caplog, test_config):
     """Test the main/entry point function (without an IRC config)."""
-    tmp_config = tmp_path / "ircstream-noirc.conf"
-    tmp_config.write_text(
-        """
-        [rc2udp]
-        [prometheus]
-        """
-    )
+    tmp_config = tmp_path / "ircstream-invalid.conf"
+    tmp_config.write_text(test_config)
     args = ("--config", str(tmp_config))
 
-    # regular start; ensure that at least the IRC server is being run
+    # make sure we don't run any threads even if the error isn't captured
     mocked_start_noop = Mock(return_value=(Mock(), Mock()))
     monkeypatch.setattr(ircstream, "start", mocked_start_noop)
-    caplog.clear()
 
+    caplog.clear()
     with pytest.raises(SystemExit) as exc:
         ircstream.main((args))
 
