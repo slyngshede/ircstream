@@ -890,18 +890,19 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         self.metrics["messages"].inc()
 
 
-class RC2UDPHandler(socketserver.BaseRequestHandler):
+class RC2UDPHandler(asyncio.Protocol):
     """A socketserver handler implementing the RC2UDP protocol, as used by MediaWiki."""
 
     log = structlog.get_logger("ircstream.rc2udp")
-    server: RC2UDPServer
 
-    def handle(self) -> None:
+    def __init__(self, server: RC2UDPServer) -> None:
+        self.server = server
+
+    def datagram_received(self, data: bytes, _: Tuple[str, int]) -> None:
         """Receive a new RC2UDP message and broadcast to all clients."""
-        data = self.request[0]
         try:
-            data = data.decode("utf8")
-            channel, text = data.split("\t", maxsplit=1)
+            decoded = data.decode("utf8")
+            channel, text = decoded.split("\t", maxsplit=1)
             channel = channel.strip()
             text = text.lstrip().replace("\r", "").replace("\n", "")
         except Exception:  # pylint: disable=broad-except
@@ -912,19 +913,23 @@ class RC2UDPHandler(socketserver.BaseRequestHandler):
         self.server.ircserver.broadcast(channel, text)
 
 
-class RC2UDPServer(DualstackServerMixIn, socketserver.UDPServer):
+class RC2UDPServer:  # pylint: disable=too-few-public-methods
     """A socketserver implementing the RC2UDP protocol, as used by MediaWiki."""
 
     log = structlog.get_logger("ircstream.rc2udp")
-    daemon_threads = True
-    allow_reuse_address = True
 
     def __init__(self, config: configparser.SectionProxy, ircserver: IRCServer) -> None:
         self.ircserver = ircserver
-        listen_address = config.get("listen_address", fallback="::")
-        listen_port = config.getint("listen_port", fallback=9390)
-        super().__init__((listen_address, listen_port), RC2UDPHandler)
-        self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
+        self.address = config.get("listen_address", fallback="::")
+        self.port = config.getint("listen_port", fallback=9390)
+
+    async def serve(self) -> None:
+        """Create a new socket, listen to it and serve requests."""
+        loop = asyncio.get_running_loop()
+        local_addr = (self.address, self.port)
+        transport, _ = await loop.create_datagram_endpoint(lambda: RC2UDPHandler(self), local_addr=local_addr)
+        local_addr = transport.get_extra_info("sockname")[:2]
+        self.address, self.port = local_addr  # update address/port based on what bind() returned
         self.log.info("Listening for RC2UDP broadcast", listen_address=self.address, listen_port=self.port)
 
 
@@ -1026,7 +1031,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:  # pylint: disable=too-m
             raise SystemExit(-1)
 
         if "rc2udp" in config:
-            servers.append(RC2UDPServer(config["rc2udp"], ircserver))
+            rc2udp_coro = RC2UDPServer(config["rc2udp"], ircserver).serve()
+            asyncio.create_task(rc2udp_coro)
         else:
             log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
