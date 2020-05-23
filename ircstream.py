@@ -963,7 +963,6 @@ async def start_servers(config: configparser.ConfigParser) -> None:
     log = structlog.get_logger("ircstream.main")
     loop = asyncio.get_running_loop()
 
-    servers: List[socketserver.BaseServer] = []
     try:
         if "irc" in config:
             ircserver = IRCServer(config["irc"])
@@ -980,11 +979,9 @@ async def start_servers(config: configparser.ConfigParser) -> None:
             log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
         if "prometheus" in config:
-            servers.append(PrometheusServer(config["prometheus"], ircserver.metrics_registry))
-
-        for server in servers:
-            server.socket.setblocking(False)
-            loop.add_reader(server.socket, server.handle_request)
+            prom_server = PrometheusServer(config["prometheus"], ircserver.metrics_registry)
+            prom_server.socket.setblocking(False)
+            loop.add_reader(prom_server.socket, prom_server.handle_request)
 
         await asyncio.wait_for(irc_task, timeout=None)  # run forever
     except OSError as exc:
