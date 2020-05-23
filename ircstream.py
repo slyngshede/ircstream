@@ -32,25 +32,19 @@ limitations under the License.
 
 import argparse
 import asyncio
-import collections
 import configparser
-import ctypes
 import dataclasses
 import datetime
 import enum
 import errno
 import http.server
 import logging
-import os
 import re
-import selectors
 import socket
 import socketserver
 import sys
 import threading
 from typing import (
-    Any,
-    Deque,
     Dict,
     Iterable,
     List,
@@ -59,6 +53,7 @@ from typing import (
     Set,
     Tuple,
     Union,
+    cast,
 )
 
 import prometheus_client  # type: ignore  # prometheus/client_python #491
@@ -228,7 +223,7 @@ class IRCError(Exception):
         self.params = params
 
 
-class IRCClient(socketserver.BaseRequestHandler):
+class IRCClient(asyncio.Protocol):
     """IRC client connect and command handling.
 
     Client connection is handled by the ``handle`` method which sets up a
@@ -237,37 +232,42 @@ class IRCClient(socketserver.BaseRequestHandler):
     """
 
     log = structlog.get_logger("ircstream.client")
-    server: IRCServer
 
-    class Disconnect(BaseException):
-        """Raised when we are about to be disconnected from the client."""
+    def __init__(self, server: IRCServer) -> None:
+        self.server = server
+        self.signon = datetime.datetime.utcnow()
+        self.last_heard = self.signon
+        self.ping_sent = False
+        self.buffer = b""
+        self.user, self.realname, self.nick = "", "", ""
+        self.channels: Set[str] = set()
+        self.transport: asyncio.Transport = None  # type: ignore
+        self.host: str = ""
+        self.port: int = 0
 
-    def __init__(self, request: Any, client_address: Any, server: IRCServer) -> None:
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        """Handle a new connection from a client."""
+        transport = cast(asyncio.Transport, transport)  # for mypy
+        self.transport = transport
+
+        client_address = transport.get_extra_info("peername")
         self.host, self.port = client_address[:2]
         # trim IPv4 mapped prefix
         if self.host.startswith("::ffff:"):
             self.host = self.host[len("::ffff:") :]
 
         self.log.new(ip=self.host, port=self.port)
+        self.log.info("Client connected")
+        self.server.metrics["clients"].inc()
 
-        self.signon = datetime.datetime.utcnow()
-        self.last_heard = self.signon
-        self.ping_sent = False
-        self.buffer = b""
-        self.selector = getattr(selectors, "PollSelector", selectors.SelectSelector)()
-        self.send_queue: Deque[str] = collections.deque(maxlen=500)
-        try:
-            self.eventfd = ctypes.CDLL("libc.so.6").eventfd(0, None)
-            os.set_blocking(self.eventfd, False)  # protect from coding errors
-            self.selector.register(self.eventfd, selectors.EVENT_READ)
-        except (OSError, AttributeError, ValueError):
-            self.eventfd = None
-            self.log.debug("The eventfd() syscall is not supported in this system")
+        async def periodic_ping() -> None:
+            while True:
+                await asyncio.sleep(self.server.client_timeout / 2)
+                if self.transport.is_closing():
+                    break
+                self._handle_timeout()
 
-        self.user, self.realname, self.nick = "", "", ""
-        self.channels: Set[str] = set()
-
-        super().__init__(request, client_address, server)
+        asyncio.create_task(periodic_ping())
 
     def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
         """Prepare and sends a response to the client.
@@ -295,37 +295,7 @@ class IRCClient(socketserver.BaseRequestHandler):
                 params.insert(0, "*")
 
         msg = IRCMessage(str(command), params, source)
-        self._send(str(msg))
-
-    def handle(self) -> None:
-        """Handle a new connection from a client."""
-        self.log.info("Client connected")
-        self.server.metrics["clients"].inc()
-
-        self.selector.register(self.request, selectors.EVENT_READ)
-        try:
-            while True:
-                # event-triggered if possible, otherwise wake up every 100ms
-                poll_timeout = min(10, self.server.client_timeout / 2) if self.eventfd else 0.1
-                ready = self.selector.select(poll_timeout)
-                ready_fds = [item[0].fileobj for item in ready]
-
-                # send pings or timeout
-                self._handle_timeout()
-
-                # clear the event and write any queued messages to the client
-                if self.eventfd in ready_fds:
-                    os.read(self.eventfd, 8)
-                self._flush_send_queue()
-
-                # see if the client has any messages for us
-                if self.request in ready_fds:
-                    self._handle_incoming()
-        except self.Disconnect:
-            self.request.close()
-        finally:
-            if self.eventfd:
-                os.close(self.eventfd)
+        self.send(str(msg))
 
     def _handle_timeout(self) -> None:
         """Send PINGs and check for ping timeouts."""
@@ -334,25 +304,20 @@ class IRCClient(socketserver.BaseRequestHandler):
         delta = datetime.datetime.utcnow() - self.last_heard
         if delta > datetime.timedelta(seconds=timeout):
             self.msg("ERROR", "Closing Link: (Ping timeout)")
-            raise self.Disconnect()
+            self.transport.write_eof()
 
         # if it's N/2 seconds since the last PONG, send a PING
         if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.registered:
             self.msg("PING", self.server.servername)
             self.ping_sent = True
 
-    def _handle_incoming(self) -> None:
+    def data_received(self, data: bytes) -> None:
         """Receive data from a client.
 
         Splits into multiple lines, and call _handle_line() for each.
         """
-        try:
-            data = self.request.recv(1024)
-        except Exception:
-            raise self.Disconnect() from None
-
-        if not data:
-            raise self.Disconnect()
+        if self.transport.is_closing():
+            return
 
         self.buffer += data
         lines = re.split(b"\r?\n", self.buffer)
@@ -393,32 +358,14 @@ class IRCClient(socketserver.BaseRequestHandler):
             self.msg("ERROR", f"Internal server error ({exc})")
             self.log.exception("Internal server error")
 
-    def _send(self, msg: str) -> None:
+    def send(self, msg: str) -> None:
         """Send a message to a connected client."""
         msg = msg[:510]  # 512 including CRLF; RFC 2813, section 3.3
         self.log.debug("Data sent", message=msg)
         try:
-            self.request.sendall(msg.encode("utf8") + b"\r\n")
+            self.transport.write(msg.encode("utf8") + b"\r\n")
         except UnicodeEncodeError as exc:
             self.log.debug("Internal encoding error", error=exc)
-        except OSError as exc:
-            if exc.errno == errno.EPIPE:
-                raise self.Disconnect()
-            raise
-
-    def send_async(self, msg: str) -> None:
-        """Send asynchronously, using the send queue. Does not block."""
-        # append to the queue (thread-safe operation)
-        self.send_queue.append(msg)
-        # trigger the queue consumer
-        if self.eventfd:
-            os.write(self.eventfd, (1).to_bytes(8, sys.byteorder))  # write "1" as 8-byte integer
-
-    def _flush_send_queue(self) -> None:
-        """Flush the send_queue to the client. May block."""
-        while self.send_queue:
-            msg = self.send_queue.popleft()
-            self._send(msg)
 
     def handle_cap(self, params: List[str]) -> None:  # pylint: disable=no-self-use
         """Stub for the CAP (capability) command.
@@ -758,7 +705,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         except IndexError:
             reason = "No reason"
         self.msg("ERROR", f"Closing Link: (Quit: {reason})")
-        raise self.Disconnect()
+        self.transport.write_eof()
 
     @property
     def registered(self) -> bool:
@@ -780,7 +727,7 @@ class IRCClient(socketserver.BaseRequestHandler):
             return f"anonymous/{host_port}"
         return f"{self.nick}!{self.user}/{host_port}"
 
-    def finish(self) -> None:
+    def connection_lost(self, _: Optional[Exception]) -> None:
         """Finish the client connection.
 
         Do some cleanup to ensure that the client doesn't linger around in any
@@ -820,11 +767,9 @@ class DualstackServerMixIn(socketserver.BaseServer):
         super().server_bind()
 
 
-class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
+class IRCServer:
     """A socketserver TCPServer instance representing an IRC server."""
 
-    daemon_threads = True
-    allow_reuse_address = True
     log = structlog.get_logger("ircstream.irc")
 
     def __init__(self, config: configparser.SectionProxy) -> None:
@@ -848,11 +793,27 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         }
         self.metrics["channels"].set_function(lambda: len(self._channels))
 
-        listen_address = config.get("listen_address", fallback="::")
-        listen_port = config.getint("listen_port", fallback=6667)
-        super().__init__((listen_address, listen_port), IRCClient)
-        self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
+        self.address = config.get("listen_address", fallback="::")
+        self.port = config.getint("listen_port", fallback=6667)
+
+    async def serve(self) -> None:
+        """Create a new socket, listen to it and serve requests."""
+        # initialize the socket ourselves, because we want to use V6ONLY that asyncio disables…
+        family = socket.AF_INET6 if ":" in self.address else socket.AF_INET
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if family == socket.AF_INET6:
+            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        sock.bind((self.address, self.port))
+
+        loop = asyncio.get_running_loop()
+        server = await loop.create_server(lambda: IRCClient(self), sock=sock)
+
+        if server.sockets:
+            local_addr = server.sockets[0].getsockname()[:2]
+            self.address, self.port = local_addr  # update address/port based on what bind() returned
         self.log.info("Listening for IRC clients", listen_address=self.address, listen_port=self.port)
+        await server.serve_forever()
 
     def subscribe(self, channel: str, client: IRCClient) -> None:
         """Subscribe a client to broadcasts for a particular channel."""
@@ -870,7 +831,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
         with self._channels_lock:
             return list(self._channels)
 
-    def broadcast(self, target: str, msg: str) -> None:
+    async def broadcast(self, target: str, msg: str) -> None:
         """Broadcast a message to all clients that have joined a channel.
 
         The source of the message is the bot's name.
@@ -882,7 +843,7 @@ class IRCServer(DualstackServerMixIn, socketserver.ThreadingTCPServer):
             clients = self._channels.setdefault(target, set())
             for client in clients:
                 try:
-                    client.send_async(message)
+                    client.send(message)
                 except Exception:  # pylint: disable=broad-except
                     self.metrics["errors"].labels("broadcast").inc()
                     self.log.debug("Unable to broadcast", exc_info=True)
@@ -910,7 +871,7 @@ class RC2UDPHandler(asyncio.Protocol):
             return
 
         self.log.debug("Broadcasting message", channel=channel, message=text)
-        self.server.ircserver.broadcast(channel, text)
+        asyncio.create_task(self.server.ircserver.broadcast(channel, text))
 
 
 class RC2UDPServer:  # pylint: disable=too-few-public-methods
@@ -996,7 +957,41 @@ def configure_logging(log_format: str = "plain") -> None:
     )
 
 
-def main(argv: Optional[Sequence[str]] = None) -> None:  # pylint: disable=too-many-branches
+async def start_servers(config: configparser.ConfigParser) -> None:
+    """Start all servers in asyncio tasks or threads and then busy-loop."""
+    log = structlog.get_logger("ircstream.main")
+    loop = asyncio.get_running_loop()
+
+    servers: List[socketserver.BaseServer] = []
+    try:
+        if "irc" in config:
+            ircserver = IRCServer(config["irc"])
+            irc_coro = ircserver.serve()
+            asyncio.create_task(irc_coro)
+        else:
+            log.critical('Invalid configuration, missing section "irc"')
+            raise SystemExit(-1)
+
+        if "rc2udp" in config:
+            rc2udp_coro = RC2UDPServer(config["rc2udp"], ircserver).serve()
+            asyncio.create_task(rc2udp_coro)
+        else:
+            log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
+
+        if "prometheus" in config:
+            servers.append(PrometheusServer(config["prometheus"]))
+
+        for server in servers:
+            server.socket.setblocking(False)
+            loop.add_reader(server.socket, server.handle_request)
+
+        await loop.create_future()  # run forever
+    except OSError as exc:
+        log.critical(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
+        raise SystemExit(-2) from exc
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
     """Entry point."""
     options = parse_args(argv)
 
@@ -1018,42 +1013,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:  # pylint: disable=too-m
         log.critical(f"Invalid configuration, {msg}")
         raise SystemExit(-1) from exc
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    servers: List[socketserver.BaseServer] = []
     try:
-        if "irc" in config:
-            ircserver = IRCServer(config["irc"])
-            servers.append(ircserver)
-        else:
-            log.critical('Invalid configuration, missing section "irc"')
-            raise SystemExit(-1)
-
-        if "rc2udp" in config:
-            rc2udp_coro = RC2UDPServer(config["rc2udp"], ircserver).serve()
-            asyncio.create_task(rc2udp_coro)
-        else:
-            log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
-
-        if "prometheus" in config:
-            servers.append(PrometheusServer(config["prometheus"]))
-
-        for server in servers:
-            server.socket.setblocking(False)
-            loop.add_reader(server.socket, server.handle_request)
-
-        loop.run_forever()
+        asyncio.run(start_servers(config))
     except KeyboardInterrupt:
         pass
-    except OSError as exc:
-        log.critical(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
-        raise SystemExit(-2) from exc
-    finally:
-        for server in servers:
-            server.server_close()
-        asyncio.set_event_loop(None)
-        loop.close()
 
 
 if __name__ == "__main__":
