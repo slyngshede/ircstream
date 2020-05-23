@@ -43,7 +43,6 @@ import re
 import socket
 import socketserver
 import sys
-import threading
 from typing import (
     Dict,
     Iterable,
@@ -782,7 +781,6 @@ class IRCServer:
 
         self.boot_time = datetime.datetime.utcnow()
         self._channels: Dict[str, Set[IRCClient]] = {}
-        self._channels_lock = threading.Lock()
         self.client_timeout = 120
 
         # set up a few Prometheus metrics
@@ -820,19 +818,16 @@ class IRCServer:
 
     def subscribe(self, channel: str, client: IRCClient) -> None:
         """Subscribe a client to broadcasts for a particular channel."""
-        with self._channels_lock:
-            self._channels[channel].add(client)
+        self._channels[channel].add(client)
 
     def unsubscribe(self, channel: str, client: IRCClient) -> None:
         """Unsubscribe a client from broadcasts for a particular channel."""
-        with self._channels_lock:
-            self._channels[channel].remove(client)
+        self._channels[channel].remove(client)
 
     @property
     def channels(self) -> Iterable[str]:
         """Return a list of all the channel names known to the server."""
-        with self._channels_lock:
-            return list(self._channels)
+        return list(self._channels)
 
     async def broadcast(self, target: str, msg: str) -> None:
         """Broadcast a message to all clients that have joined a channel.
@@ -842,15 +837,14 @@ class IRCServer:
         botid = self.botname + "!" + self.botname + "@" + self.servername
         message = str(IRCMessage("PRIVMSG", [target, msg], source=botid))
 
-        with self._channels_lock:
-            clients = self._channels.setdefault(target, set())
-            for client in clients:
-                try:
-                    client.send(message)
-                except Exception:  # pylint: disable=broad-except
-                    self.metrics["errors"].labels("broadcast").inc()
-                    self.log.debug("Unable to broadcast", exc_info=True)
-                    continue  # ignore exceptions, to catch corner cases
+        clients = self._channels.setdefault(target, set())
+        for client in clients:
+            try:
+                client.send(message)
+            except Exception:  # pylint: disable=broad-except
+                self.metrics["errors"].labels("broadcast").inc()
+                self.log.debug("Unable to broadcast", exc_info=True)
+                continue  # ignore exceptions, to catch corner cases
         self.metrics["messages"].inc()
 
 
