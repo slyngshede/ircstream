@@ -31,7 +31,9 @@ limitations under the License.
 """
 
 import argparse
+import asyncio
 import collections
+import concurrent.futures
 import configparser
 import ctypes
 import dataclasses
@@ -990,16 +992,7 @@ def configure_logging(log_format: str = "plain") -> None:
     )
 
 
-def start(cls: type, config: configparser.SectionProxy, *args: Any) -> Tuple[socketserver.BaseServer, threading.Thread]:
-    """Start a socket server, and their associated thread to server requests."""
-    server = cls(config, *args)
-    # do not poll every 500ms for a shutdown signal, as we don't ever trigger it
-    thread = threading.Thread(name=config.name, target=server.serve_forever, args=(None,), daemon=True)
-    thread.start()
-    return (server, thread)
-
-
-def main(argv: Optional[Sequence[str]] = None) -> None:
+async def main(argv: Optional[Sequence[str]] = None) -> None:  # pylint: disable=too-many-branches
     """Entry point."""
     options = parse_args(argv)
 
@@ -1021,29 +1014,37 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         log.critical(f"Invalid configuration, {msg}")
         raise SystemExit(-1) from exc
 
+    servers: List[socketserver.BaseServer] = []
     try:
         if "irc" in config:
-            ircserver, ircthread = start(IRCServer, config["irc"])
+            ircserver = IRCServer(config["irc"])
+            servers.append(ircserver)
         else:
             log.critical('Invalid configuration, missing section "irc"')
             raise SystemExit(-1)
 
         if "rc2udp" in config:
-            start(RC2UDPServer, config["rc2udp"], ircserver)
+            servers.append(RC2UDPServer(config["rc2udp"], ircserver))
         else:
             log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
         if "prometheus" in config:
-            start(PrometheusServer, config["prometheus"])
+            servers.append(PrometheusServer(config["prometheus"]))
 
-        ircthread.join()
-        ircserver.server_close()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            for server in servers:
+                executor.submit(server.serve_forever, 0.1)  # wake up every 100ms to check for a shutdown signal
+            # blocks until all futures have completed
     except KeyboardInterrupt:
-        return
+        pass
     except OSError as exc:
         log.critical(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
         raise SystemExit(-2) from exc
+    finally:
+        for server in servers:
+            server.server_close()
+            server.shutdown()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
