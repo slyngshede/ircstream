@@ -1024,7 +1024,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         if "irc" in config:
             ircserver, ircthread = start(IRCServer, config["irc"])
         else:
-            log.error("Invalid configuration, missing section", section="irc")
+            log.critical("Invalid configuration, missing section", section="irc")
             raise SystemExit(-1)
 
         if "rc2udp" in config:
@@ -1040,7 +1040,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     except KeyboardInterrupt:
         return
     except OSError as exc:
-        log.error(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
+        log.critical(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
         raise SystemExit(-2)
 
 
