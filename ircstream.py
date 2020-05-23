@@ -33,7 +33,6 @@ limitations under the License.
 import argparse
 import asyncio
 import collections
-import concurrent.futures
 import configparser
 import ctypes
 import dataclasses
@@ -992,7 +991,7 @@ def configure_logging(log_format: str = "plain") -> None:
     )
 
 
-async def main(argv: Optional[Sequence[str]] = None) -> None:  # pylint: disable=too-many-branches
+def main(argv: Optional[Sequence[str]] = None) -> None:  # pylint: disable=too-many-branches
     """Entry point."""
     options = parse_args(argv)
 
@@ -1014,6 +1013,9 @@ async def main(argv: Optional[Sequence[str]] = None) -> None:  # pylint: disable
         log.critical(f"Invalid configuration, {msg}")
         raise SystemExit(-1) from exc
 
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     servers: List[socketserver.BaseServer] = []
     try:
         if "irc" in config:
@@ -1031,10 +1033,11 @@ async def main(argv: Optional[Sequence[str]] = None) -> None:  # pylint: disable
         if "prometheus" in config:
             servers.append(PrometheusServer(config["prometheus"]))
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            for server in servers:
-                executor.submit(server.serve_forever, 0.1)  # wake up every 100ms to check for a shutdown signal
-            # blocks until all futures have completed
+        for server in servers:
+            server.socket.setblocking(False)
+            loop.add_reader(server.socket, server.handle_request)
+
+        loop.run_forever()
     except KeyboardInterrupt:
         pass
     except OSError as exc:
@@ -1043,8 +1046,9 @@ async def main(argv: Optional[Sequence[str]] = None) -> None:  # pylint: disable
     finally:
         for server in servers:
             server.server_close()
-            server.shutdown()
+        asyncio.set_event_loop(None)
+        loop.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
