@@ -245,7 +245,7 @@ class IRCClient(asyncio.Protocol):
         self.transport: asyncio.Transport = None  # type: ignore
         self.host: str = ""
         self.port: int = 0
-        self.periodic_ping_task: Optional[asyncio.Task[Any]] = None
+        self._periodic_ping_task: Optional[asyncio.Task[Any]] = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         """Handle a new connection from a client."""
@@ -261,15 +261,25 @@ class IRCClient(asyncio.Protocol):
         self.log.new(ip=self.host, port=self.port)
         self.log.info("Client connected")
         self.server.metrics["clients"].inc()
+        self._periodic_ping_task = asyncio.create_task(self._periodic_ping())
 
-        async def periodic_ping() -> None:
-            while True:
-                await asyncio.sleep(self.server.client_timeout / 2)
-                if self.transport.is_closing():
-                    break
-                self._handle_timeout()
+    async def _periodic_ping(self) -> None:
+        while True:
+            await asyncio.sleep(self.server.client_timeout / 2)
+            if self.transport.is_closing():
+                break
 
-        self.periodic_ping_task = asyncio.create_task(periodic_ping())
+            timeout = self.server.client_timeout
+            # if we haven't heard from the client in N seconds, disconnect
+            delta = datetime.datetime.utcnow() - self.last_heard
+            if delta > datetime.timedelta(seconds=timeout):
+                self.msg("ERROR", "Closing Link: (Ping timeout)")
+                self.transport.write_eof()
+
+            # if it's N/2 seconds since the last PONG, send a PING
+            if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.registered:
+                self.msg("PING", self.server.servername)
+                self.ping_sent = True
 
     def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
         """Prepare and sends a response to the client.
@@ -298,20 +308,6 @@ class IRCClient(asyncio.Protocol):
 
         msg = IRCMessage(str(command), params, source)
         self.send(str(msg))
-
-    def _handle_timeout(self) -> None:
-        """Send PINGs and check for ping timeouts."""
-        timeout = self.server.client_timeout
-        # if we haven't heard from the client in N seconds, disconnect
-        delta = datetime.datetime.utcnow() - self.last_heard
-        if delta > datetime.timedelta(seconds=timeout):
-            self.msg("ERROR", "Closing Link: (Ping timeout)")
-            self.transport.write_eof()
-
-        # if it's N/2 seconds since the last PONG, send a PING
-        if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.registered:
-            self.msg("PING", self.server.servername)
-            self.ping_sent = True
 
     def data_received(self, data: bytes) -> None:
         """Receive data from a client.
@@ -738,8 +734,8 @@ class IRCClient(asyncio.Protocol):
         """
         for channel in self.channels:
             self.server.unsubscribe(channel, self)
-        if self.periodic_ping_task:
-            self.periodic_ping_task.cancel()
+        if self._periodic_ping_task:
+            self._periodic_ping_task.cancel()
         self.server.metrics["clients"].dec()
         self.log.info("Client disconnected")
 
