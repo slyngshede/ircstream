@@ -44,6 +44,7 @@ import socket
 import socketserver
 import sys
 from typing import (
+    Any,
     Dict,
     Iterable,
     List,
@@ -244,6 +245,7 @@ class IRCClient(asyncio.Protocol):
         self.transport: asyncio.Transport = None  # type: ignore
         self.host: str = ""
         self.port: int = 0
+        self.periodic_ping_task: Optional[asyncio.Task[Any]] = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         """Handle a new connection from a client."""
@@ -267,7 +269,7 @@ class IRCClient(asyncio.Protocol):
                     break
                 self._handle_timeout()
 
-        asyncio.create_task(periodic_ping())
+        self.periodic_ping_task = asyncio.create_task(periodic_ping())
 
     def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
         """Prepare and sends a response to the client.
@@ -736,6 +738,8 @@ class IRCClient(asyncio.Protocol):
         """
         for channel in self.channels:
             self.server.unsubscribe(channel, self)
+        if self.periodic_ping_task:
+            self.periodic_ping_task.cancel()
         self.server.metrics["clients"].dec()
         self.log.info("Client disconnected")
 
