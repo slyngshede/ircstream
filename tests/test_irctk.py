@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import subprocess
+import asyncio
 
 import ircstream
 
 import pytest
 
 
-def test_irctk(ircserver: ircstream.IRCServer) -> None:
+@pytest.mark.asyncio
+async def test_irctk(ircserver: ircstream.IRCServer) -> None:
     """Test a simple conversation using irctk."""
     hostport = f"{ircserver.address}:{ircserver.port}"
     if ircserver.address == "::":
@@ -20,12 +21,13 @@ def test_irctk(ircserver: ircstream.IRCServer) -> None:
 
     try:
         miscargs = "--event-to-message --interval=0 --interval-end=1".split()
-        proc = subprocess.Popen(
-            ["irctk", *miscargs, hostport],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            encoding="ascii",
+        proc = await asyncio.create_subprocess_exec(
+            "irctk",
+            *miscargs,
+            hostport,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
         )
     except FileNotFoundError:
         pytest.skip("irctk not found")
@@ -34,21 +36,24 @@ def test_irctk(ircserver: ircstream.IRCServer) -> None:
     assert proc.stdin is not None and proc.stdout is not None
 
     # be careful of interprocess deadlocks!
-    def comm(msg: str) -> str:
+    async def comm(msg: str) -> str:
         assert proc.stdin is not None and proc.stdout is not None
-        proc.stdin.write(msg + "\n")
-        proc.stdin.flush()
-        return proc.stdout.readline().strip()
+        proc.stdin.write(msg.encode("ascii") + b"\n")
+        return (await proc.stdout.readline()).strip().decode("ascii")
 
-    assert comm("/join #channel") == "irctk: Cannot join #channel: no such channel."
+    assert await comm("/join #channel") == "irctk: Cannot join #channel: no such channel."
 
-    ircserver.broadcast("#channel", "create the channel")
-    assert comm("/join #channel") == "[#channel] -!- irctk has joined #channel"
+    await ircserver.broadcast("#channel", "create the channel")
+    assert await comm("/join #channel") == "[#channel] -!- irctk has joined #channel"
 
-    ircserver.broadcast("#channel", "a message")
-    assert proc.stdout.readline().strip() == f"[#channel] <{ircserver.botname}> a message"
+    await ircserver.broadcast("#channel", "a message")
+    assert (await proc.stdout.readline()).strip().decode("ascii") == f"[#channel] <{ircserver.botname}> a message"
 
-    assert comm("/quit bye") == "irctk: [error] Error from server: Closing Link: (Quit: bye)"
+    assert await comm("/quit bye") == "irctk: [error] Error from server: Closing Link: (Quit: bye)"
 
     proc.stdin.close()
-    proc.kill()
+
+    try:
+        proc.kill()
+    except ProcessLookupError:
+        pass

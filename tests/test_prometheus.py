@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import configparser
 import http.client
+import threading
 from typing import Generator
 
 import ircstream
 
 import pytest
-
-from .conftest import start_server_in_thread
 
 
 @pytest.fixture(name="prometheus_server", scope="module")
@@ -19,7 +18,15 @@ def fixture_prometheus_server(config: configparser.ConfigParser) -> Generator[ir
 
     This spawns a thread to run the server. It yields the instance.
     """
-    yield from start_server_in_thread(ircstream.PrometheusServer, config["prometheus"])
+    server = ircstream.PrometheusServer(config["prometheus"])
+    thread = threading.Thread(name="prometheus", target=server.serve_forever)
+    thread.start()
+
+    yield server
+
+    server.shutdown()
+    thread.join()
+    server.server_close()
 
 
 def test_prometheus_server(prometheus_server: ircstream.PrometheusServer) -> None:

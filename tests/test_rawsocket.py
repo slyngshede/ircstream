@@ -7,10 +7,8 @@ manually, using a raw socket.
 
 from __future__ import annotations
 
-import ctypes
-import socket
-import time
-from typing import Generator, Sequence
+import asyncio
+from typing import Any, AsyncGenerator, Callable, Optional, Sequence
 from unittest.mock import Mock
 
 import ircstream
@@ -18,94 +16,66 @@ import ircstream
 import pytest
 
 
-class BareClient:  # pylint: disable=too-few-public-methods
+pytestmark = pytest.mark.asyncio
+
+
+class BareClient:
     """Bare client around socket operations to support a line-based protocol."""
 
-    def __init__(self, address: str, port: int) -> None:
+    def __init__(self) -> None:
         """Initialize the socket *and connect*."""
-        self.sock = socket.create_connection((address, port), 0.2)
-        self.close = self.sock.close
-        self.sendall = self.sock.sendall
+        self.reader: Optional[asyncio.StreamReader] = None
+        self.writer: Optional[asyncio.StreamWriter] = None
+        self.close: Callable[[], None] = lambda: None
+        self.write: Callable[[bytes], None] = lambda x: None
+        self.readline: Any = None
 
-    def readlines(self) -> Sequence[bytes]:
+    async def connect(self, address: str, port: int) -> None:
+        """Connect to the socket."""
+        self.reader, self.writer = await asyncio.open_connection(address, port)
+        self.close = self.writer.close
+        self.write = self.writer.write
+        self.readline = self.reader.readline
+
+    async def readlines(self) -> Sequence[bytes]:
         """Read and return all lines in input, until a timeout occurs."""
-        output = b""
-        # read all output until timed out
+        output = []
         while True:
             try:
-                msg = self.sock.recv(1024)
-                if not msg:  # EOF
-                    break
-            except socket.timeout:
+                line = await asyncio.wait_for(self.readline(), 0.2)
+                output.append(line)
+            except asyncio.TimeoutError:
                 break
-            output += msg
-        return output.splitlines()
+
+        return output
 
 
 @pytest.fixture(name="clientsock")
-def clientsock_fixture(ircserver: ircstream.IRCServer) -> BareClient:
+async def clientsock_fixture(ircserver: ircstream.IRCServer) -> AsyncGenerator[BareClient, None]:
     """Return an instance of our fake/raw IRC client."""
-    return BareClient(ircserver.address, ircserver.port)
+    client = BareClient()
+    await client.connect(ircserver.address, ircserver.port)
+    yield client
+    client.close()
 
 
-def test_no_eventfd(monkeypatch: pytest.MonkeyPatch, ircserver: ircstream.IRCServer) -> None:
-    """Test codepaths where eventfd() is not available."""
-    with monkeypatch.context() as mpcontext:
-        # pretend ctypes.CDLL("libc.so.6") failed
-        mpcontext.delattr(ctypes, "CDLL", raising=True)
-
-        # don't use the fixture, as it would connect before we had a chance to monkey patch
-        clientsock = BareClient(ircserver.address, ircserver.port)
-
-        clientsock.sendall(b"NICK nick\n")
-        clientsock.sendall(b"USER one two three four\n")
-        data = clientsock.readlines()
-        assert any(b"001 nick" in response for response in data)
-
-
-def test_premature_close(clientsock: BareClient) -> None:
+async def test_premature_close(clientsock: BareClient) -> None:
     """Test the handling of a premature close, right after connecting."""
     clientsock.close()
 
 
-def test_premature_close2(clientsock: BareClient) -> None:
-    """Test the handling of a premature close, with the send buffer full."""
-    clientsock.sendall(b"NICK nick\n")
-    clientsock.sendall(b"USER one two three four\n")
-    # close before we recv() on the socket, thus when the server is blocked on send()
-    clientsock.close()
-
-
-@pytest.fixture(name="ircserver_short_timeout")
-def fixture_ircserver_short_timeout(ircserver: ircstream.IRCServer) -> Generator[ircstream.IRCServer, None, None]:
-    """Return an IRCServer modified to run with a very short timeout.
-
-    This is a separate fixture to make sure that the default value is restored
-    e.g. if the test fails.
-    """
-    # save the old timeout
-    default_timeout = ircserver.client_timeout
-    # set timeout to a (much) smaller value, to avoid long waits while testing
-    ircserver.client_timeout = 1
-
-    yield ircserver
-
-    # restore it to the default value
-    ircserver.client_timeout = default_timeout
-
-
-def test_ping_timeout(ircserver_short_timeout: ircstream.IRCServer, clientsock: BareClient) -> None:
+async def test_ping_timeout(ircserver_short_timeout: ircstream.IRCServer, clientsock: BareClient) -> None:
     """Test a PING timeout condition."""
     # wait at least until the ping timeout interval
-    time.sleep(ircserver_short_timeout.client_timeout)
+    await asyncio.sleep(ircserver_short_timeout.client_timeout)
 
     # try another 5 times for a total of another interval
     ping_timedout = False
     for _ in range(0, 5):
-        data = clientsock.readlines()
+        data = await clientsock.readline()
         if not data:
             continue
-        elif b"ERROR :Closing Link: (Ping timeout)" in data[0]:
+        elif b"ERROR :Closing Link: (Ping timeout)" in data:
             ping_timedout = True
             break
         else:
@@ -114,108 +84,108 @@ def test_ping_timeout(ircserver_short_timeout: ircstream.IRCServer, clientsock: 
     assert ping_timedout
 
 
-def test_preregister_command(clientsock: BareClient) -> None:
+async def test_preregister_command(clientsock: BareClient) -> None:
     """Test sending a command that is not valid before registration."""
-    clientsock.sendall(b"WHOIS noone\n")
-    data = clientsock.readlines()
+    clientsock.write(b"WHOIS noone\n")
+    data = await clientsock.readlines()
     assert len(data) == 1
     assert b"451 * :You have not registered" in data[0]
 
 
-def test_erroneous(clientsock: BareClient) -> None:
+async def test_erroneous(clientsock: BareClient) -> None:
     """Test erroneous parameters."""
-    clientsock.sendall(b"USER one two three four\n")
+    clientsock.write(b"USER one two three four\n")
 
-    clientsock.sendall(b"NICK /invalid\n")
-    data = clientsock.readlines()
+    clientsock.write(b"NICK /invalid\n")
+    data = await clientsock.readlines()
     assert any(b"432 *" in response for response in data)
 
-    clientsock.sendall(b"NICK " + b"a" * 100 + b"\n")
-    data = clientsock.readlines()
+    clientsock.write(b"NICK " + b"a" * 100 + b"\n")
+    data = await clientsock.readlines()
     assert any(b"432 *" in response for response in data)
 
-    clientsock.sendall(b":NOCOMMAND\n")
-    data = clientsock.readlines()
+    clientsock.write(b":NOCOMMAND\n")
+    data = await clientsock.readlines()
     assert data == []
 
 
-def test_unicodeerror(ircserver: ircstream.IRCServer, clientsock: BareClient) -> None:
+async def test_unicodeerror(ircserver: ircstream.IRCServer, clientsock: BareClient) -> None:
     """Test for UnicodeError handling in both directions."""
-    clientsock.sendall(b"USER one two three four\n")
-    clientsock.sendall(b"NICK nick\n")
-    data = clientsock.readlines()
+    clientsock.write(b"USER one two three four\n")
+    clientsock.write(b"NICK nick\n")
+    data = await clientsock.readlines()
     assert any(b"001 nick" in response for response in data)
 
-    clientsock.sendall(b"WHOIS \x80\n")  # 0x80 is invalid unicode
-    data = clientsock.readlines()
+    clientsock.write(b"WHOIS \x80\n")  # 0x80 is invalid unicode
+    data = await clientsock.readlines()
     assert data == []
 
-    ircserver.broadcast("#channel", "create the channel")
-    clientsock.sendall(b"JOIN #channel\n")
-    data = clientsock.readlines()
+    await ircserver.broadcast("#channel", "create the channel")
+    clientsock.write(b"JOIN #channel\n")
+    data = await clientsock.readlines()
     assert any(b"JOIN #channel" in response for response in data)
 
     # this creates a string that will fail .encode("utf8")
     unencodeable_utf8 = "unencodeable " + b"\x80".decode("utf8", "surrogateescape")
-    ircserver.broadcast("#channel", unencodeable_utf8)
-    data = clientsock.readlines()
+    await ircserver.broadcast("#channel", unencodeable_utf8)
+    data = await clientsock.readlines()
     assert data == []
 
 
-def test_broadcast_failure(
+async def test_broadcast_failure(
     monkeypatch: pytest.MonkeyPatch,
     clientsock: BareClient,
     ircserver: ircstream.IRCServer,
 ) -> None:
     """Test that exceptions in the broadcast() method are handled."""
     # login to the client (normal)
-    clientsock.sendall(b"USER one two three four\n")
-    clientsock.sendall(b"NICK nick\n")
-    data = clientsock.readlines()
+    clientsock.write(b"USER one two three four\n")
+    clientsock.write(b"NICK nick\n")
+    data = await clientsock.readlines()
     assert any(b"001 nick" in response for response in data)
 
     # create and join a channel (also normal)
-    ircserver.broadcast("#channel", "create the channel")
-    clientsock.sendall(b"JOIN #channel\n")
-    data = clientsock.readlines()
+    await ircserver.broadcast("#channel", "create the channel")
+    clientsock.write(b"JOIN #channel\n")
+    data = await clientsock.readlines()
     assert any(b"JOIN #channel" in response for response in data)
 
     # ...and now actually test
     with monkeypatch.context() as mpcontext:
         mocked_send_async = Mock(side_effect=OSError("dummy"))
-        mpcontext.setattr(ircstream.IRCClient, "send_async", mocked_send_async)
+        mpcontext.setattr(ircstream.IRCClient, "send", mocked_send_async)
 
-        ircserver.broadcast("#channel", "should fail silently")
+        await ircserver.broadcast("#channel", "should fail silently")
 
 
-def test_redundant(clientsock: BareClient) -> None:
+async def test_redundant(clientsock: BareClient) -> None:
     """Test redundant parameters in commands that allow it."""
     # five arguments for USER
-    clientsock.sendall(b"PASS password\n")
-    clientsock.sendall(b"USER one two three four redundant\n")
-    clientsock.sendall(b"NICK nick\n")
-    data = clientsock.readlines()
+    clientsock.write(b"PASS password\n")
+    clientsock.write(b"USER one two three four redundant\n")
+    clientsock.write(b"NICK nick\n")
+    data = await clientsock.readlines()
     assert any(b"001 nick" in response for response in data)
 
-    clientsock.sendall(b"PASS password\n")
-    data = clientsock.readlines()
+    clientsock.write(b"PASS password\n")
+    data = await clientsock.readlines()
     assert any(b"462 nick :You may not reregister" in response for response in data)
 
     # two arguments for WHOIS
-    clientsock.sendall(b"WHOIS nick second\n")
-    data = clientsock.readlines()
+    clientsock.write(b"WHOIS nick second\n")
+    data = await clientsock.readlines()
     assert any(b"401 nick second :No such nick/channel" in response for response in data)
 
 
-def test_exception(clientsock: BareClient) -> None:
+async def test_exception(clientsock: BareClient) -> None:
     """Test whether our injected EXCEPTION handler works."""
     # register
-    clientsock.sendall(b"USER one two three four\n")
-    clientsock.sendall(b"NICK nick\n")
-    data = clientsock.readlines()
+    clientsock.write(b"USER one two three four\n")
+    clientsock.write(b"NICK nick\n")
+    data = await clientsock.readlines()
     assert any(b"001 nick" in response for response in data)
 
     # needs registration
-    clientsock.sendall(b"RAISEEXC\n")
-    data = clientsock.readlines()
+    clientsock.write(b"RAISEEXC\n")
+    data = await clientsock.readlines()
     assert data and b"Internal server error" in data[-1]

@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import configparser
 import logging
-import socketserver
-import threading
 from typing import (
-    Any,
+    AsyncGenerator,
     Generator,
     List,
-    Type,
-    TypeVar,
 )
 
 import ircstream
@@ -21,24 +18,6 @@ import prometheus_client  # type: ignore
 import pytest
 
 import structlog
-
-
-BaseServerCls = TypeVar("BaseServerCls", bound=socketserver.BaseServer)
-
-
-def start_server_in_thread(
-    cls: Type[BaseServerCls], config: configparser.SectionProxy, *args: Any
-) -> Generator[BaseServerCls, None, None]:
-    """Start a socketserver in a thread, yield, and cleanly shut it down."""
-    server = cls(config, *args)
-    thread = threading.Thread(name=config.name, target=server.serve_forever)
-    thread.start()
-
-    yield server
-
-    server.shutdown()
-    thread.join()
-    server.server_close()
 
 
 @pytest.fixture(autouse=True)
@@ -85,8 +64,16 @@ def fixture_config() -> Generator[configparser.ConfigParser, None, None]:
     yield config
 
 
+@pytest.fixture(name="event_loop", scope="module")
+def fixture_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
+    """Override for pytest-asyncio's event_loop fixture to scope it as module."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
 @pytest.fixture(name="ircserver", scope="module")
-def fixture_ircserver(config: configparser.ConfigParser) -> Generator[ircstream.IRCServer, None, None]:
+async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator[ircstream.IRCServer, None]:
     """Fixture for an instance of an IRCServer.
 
     This spawns a thread to run the server. It yields the IRCServer instance,
@@ -101,4 +88,24 @@ def fixture_ircserver(config: configparser.ConfigParser) -> Generator[ircstream.
         raise Exception("Purposefully triggered exception")
 
     ircstream.IRCClient.handle_raiseexc = handle_raiseexc  # type: ignore
-    yield from start_server_in_thread(ircstream.IRCServer, config["irc"])
+
+    ircserver = ircstream.IRCServer(config["irc"])
+    irc_task = asyncio.create_task(ircserver.serve())
+    yield ircserver
+    irc_task.cancel()
+
+
+@pytest.fixture(name="ircserver_short_timeout")
+async def fixture_ircserver_short_timeout(ircserver: ircstream.IRCServer) -> AsyncGenerator[ircstream.IRCServer, None]:
+    """Return an IRCServer modified to run with a very short timeout.
+
+    This is a separate fixture to make sure that the default value is restored
+    e.g. if the test fails.
+    """
+    # save the old timeout
+    default_timeout = ircserver.client_timeout
+    # set timeout to a (much) smaller value, to avoid long waits while testing
+    ircserver.client_timeout = 2
+    yield ircserver
+    # restore it to the default value
+    ircserver.client_timeout = default_timeout
