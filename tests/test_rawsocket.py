@@ -42,7 +42,7 @@ class BareClient:
         output = []
         while True:
             try:
-                line = await asyncio.wait_for(self.readline(), 0.2)
+                line = await asyncio.wait_for(self.readline(), 0.1)
                 output.append(line)
             except asyncio.TimeoutError:
                 break
