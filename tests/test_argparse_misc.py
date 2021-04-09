@@ -5,7 +5,7 @@ from unittest.mock import ANY, Mock
 
 import ircstream
 
-import pytest  # type: ignore
+import pytest
 
 import structlog
 

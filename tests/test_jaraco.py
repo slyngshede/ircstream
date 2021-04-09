@@ -1,6 +1,6 @@
 """Test an instance of our IRCServer, using a Python IRC client."""
 
-import pytest  # type: ignore
+import pytest
 
 from .ircclient import IRCClientThread
 

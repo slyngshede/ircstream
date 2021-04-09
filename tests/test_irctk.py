@@ -2,7 +2,7 @@
 
 import subprocess
 
-import pytest  # type: ignore
+import pytest
 
 
 def test_irctk(ircserver) -> None:

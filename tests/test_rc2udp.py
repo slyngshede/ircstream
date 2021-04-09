@@ -8,7 +8,7 @@ import ircstream
 
 import prometheus_client  # type: ignore
 
-import pytest  # type: ignore
+import pytest
 
 from .conftest import start_server_in_thread
 

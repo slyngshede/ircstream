@@ -4,7 +4,7 @@ import http.client
 
 import ircstream
 
-import pytest  # type: ignore
+import pytest
 
 from .conftest import start_server_in_thread
 

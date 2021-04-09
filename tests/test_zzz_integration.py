@@ -14,7 +14,7 @@ import ircstream
 
 import prometheus_client  # type: ignore
 
-import pytest  # type: ignore
+import pytest
 
 
 SERVER_IP = "127.0.0.1"

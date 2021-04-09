@@ -13,7 +13,7 @@ from unittest.mock import Mock
 
 import ircstream
 
-import pytest  # type: ignore
+import pytest
 
 
 class BareClient:  # pylint: disable=too-few-public-methods

@@ -7,7 +7,7 @@ import ircstream
 
 import prometheus_client  # type: ignore
 
-import pytest  # type: ignore
+import pytest
 
 import structlog
 
