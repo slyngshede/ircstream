@@ -6,6 +6,7 @@ import multiprocessing.synchronize
 import socket
 import threading
 import time
+from typing import Any
 
 import irc.client  # type: ignore
 import irc.connection  # type: ignore
@@ -33,7 +34,7 @@ class IRCMessageCounter(irc.client.SimpleIRCClient):
     right number of messages were received.
     """
 
-    def __init__(self, channel: str, received: multiprocessing.Value, ready: multiprocessing.synchronize.Event) -> None:
+    def __init__(self, channel: str, received: Any, ready: multiprocessing.synchronize.Event) -> None:
         self.channel = channel
         self.ready = ready
         self.received = received
@@ -116,7 +117,7 @@ def prometheus_metric(metric: str) -> float:
     return 0.0
 
 
-def spawn_client_process(channel: str, counter: multiprocessing.Value) -> multiprocessing.Process:
+def spawn_client_process(channel: str, counter: Any) -> multiprocessing.Process:
     """Spawn an IRC message counter client into a separate process."""
     ready_to_receive = multiprocessing.Event()
 
