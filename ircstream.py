@@ -561,13 +561,9 @@ class IRCClient(socketserver.BaseRequestHandler):
         cmodes = ("b", "k", "l", "mtns")  # channel modes, types A-D
 
         self.msg(RPL.WELCOME, "Welcome to IRCStream")
-        self.msg(
-            RPL.YOURHOST, f"Your host is {self.server.servername}, running version {__version__}",
-        )
+        self.msg(RPL.YOURHOST, f"Your host is {self.server.servername}, running version {__version__}")
         self.msg(RPL.CREATED, f"This server was created {self.server.boot_time:%c}")
-        self.msg(
-            RPL.MYINFO, f"{self.server.servername} {__version__} i {''.join(cmodes)}",
-        )
+        self.msg(RPL.MYINFO, f"{self.server.servername} {__version__} i {''.join(cmodes)}")
         self.msg(
             RPL.ISUPPORT,
             [
