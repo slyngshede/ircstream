@@ -9,7 +9,7 @@ import prometheus_client  # type: ignore
 
 import pytest  # type: ignore
 
-import structlog  # type: ignore
+import structlog
 
 
 def start_server_in_thread(cls, config, *args):

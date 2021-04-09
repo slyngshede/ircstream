@@ -7,7 +7,7 @@ import ircstream
 
 import pytest  # type: ignore
 
-import structlog  # type: ignore
+import structlog
 
 
 def test_parse_args_help(capsys):

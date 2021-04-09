@@ -62,7 +62,7 @@ from typing import (
 
 import prometheus_client  # type: ignore  # prometheus/client_python #491
 
-import structlog  # type: ignore  # hynek/structlog #165
+import structlog
 
 
 class IRCNumeric(enum.Enum):
@@ -963,7 +963,7 @@ def configure_logging(log_format: str = "plain") -> None:
     """Configure logging parameters."""
     logging.basicConfig(format="%(message)s", level=logging.WARNING)
 
-    processors = [
+    processors: List[structlog.types.Processor] = [
         structlog.stdlib.filter_by_level,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
