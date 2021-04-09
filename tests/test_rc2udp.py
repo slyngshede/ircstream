@@ -1,8 +1,15 @@
 """Tests for the RC2UDP protocol server."""
 
+from __future__ import annotations
+
+import configparser
 import socket
 import threading
-from typing import List, Tuple
+from typing import (
+    Generator,
+    List,
+    Tuple,
+)
 
 import ircstream
 
@@ -42,13 +49,13 @@ class MockIRCServer:
 
 
 @pytest.fixture(name="rc2udp_server", scope="module")
-def fixture_rc2udp_server(config):
+def fixture_rc2udp_server(config: configparser.ConfigParser) -> Generator[ircstream.RC2UDPServer, None, None]:
     """Fixture for an instance of an RC2UDPServer.
 
     This spawns a thread to run the server. It yields the instance.
     """
     mock_ircserver = MockIRCServer()
-    yield from start_server_in_thread(ircstream.RC2UDPServer, config["rc2udp"], mock_ircserver)  # type: ignore
+    yield from start_server_in_thread(ircstream.RC2UDPServer, config["rc2udp"], mock_ircserver)
 
 
 def send_datagram(address: str, port: int, data: bytes) -> None:
@@ -62,20 +69,20 @@ def send_datagram(address: str, port: int, data: bytes) -> None:
 
 
 @pytest.mark.parametrize("message", ["my message", "#lookslikeachannel", "onetab\tsecond tab"])
-def test_rc2udp_valid(rc2udp_server, message):
+def test_rc2udp_valid(rc2udp_server: ircstream.RC2UDPServer, message: str) -> None:
     """Test that valid RC2UDP messages are received and parsed correctly."""
-    rc2udp_server.ircserver.clear()
+    rc2udp_server.ircserver.clear()  # type: ignore
     data = ("#channel", message)
     rawdata = "\t".join(data).encode()
     send_datagram(rc2udp_server.address, rc2udp_server.port, rawdata)
-    assert rc2udp_server.ircserver.wait()
-    assert rc2udp_server.ircserver.data == [data]
+    assert rc2udp_server.ircserver.wait()  # type: ignore
+    assert rc2udp_server.ircserver.data == [data]  # type: ignore
 
 
 @pytest.mark.parametrize("data", [b"#nomessage", b"#channel\tinvalid utf8\x80"])
-def test_rc2udp_invalid(rc2udp_server, data):
+def test_rc2udp_invalid(rc2udp_server: ircstream.RC2UDPServer, data: bytes) -> None:
     """Test that invalid RC2UDP are dropped gracefully."""
-    rc2udp_server.ircserver.clear()
+    rc2udp_server.ircserver.clear()  # type: ignore
     send_datagram(rc2udp_server.address, rc2udp_server.port, data)
-    assert not rc2udp_server.ircserver.wait()
-    assert len(rc2udp_server.ircserver.data) == 0
+    assert not rc2udp_server.ircserver.wait()  # type: ignore
+    assert len(rc2udp_server.ircserver.data) == 0  # type: ignore

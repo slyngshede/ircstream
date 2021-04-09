@@ -1,11 +1,15 @@
 """Test our server implementation using irctk."""
 
+from __future__ import annotations
+
 import subprocess
+
+import ircstream
 
 import pytest
 
 
-def test_irctk(ircserver) -> None:
+def test_irctk(ircserver: ircstream.IRCServer) -> None:
     """Test a simple conversation using irctk."""
     hostport = f"{ircserver.address}:{ircserver.port}"
     if ircserver.address == "::":

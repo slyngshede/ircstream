@@ -1,6 +1,9 @@
 """Test the validity of our IRCMessage parser/builder."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Any, Mapping
 
 from ircstream import IRCMessage
 
@@ -9,7 +12,8 @@ import yaml
 TEST_DATA_DIR = Path("tests") / Path("data")
 
 
-def pytest_generate_tests(metafunc):
+# type ignore until https://github.com/pytest-dev/pytest/pull/8194/commits/bd76042344b3c3318dddf991c08d49bbce2251bb
+def pytest_generate_tests(metafunc) -> None:  # type: ignore
     """Generate test data fixtures from irc-parser-tests YAML files.
 
     Load the YAML files from the irc-parser-tests project, and create one
@@ -22,13 +26,13 @@ def pytest_generate_tests(metafunc):
     }
 
     for fixture, filename in fixtures.items():
-        filename = TEST_DATA_DIR / Path(filename)
+        filepath = TEST_DATA_DIR / Path(filename)
         if fixture in metafunc.fixturenames:
-            yamldata = yaml.safe_load(open(filename).read())
+            yamldata = yaml.safe_load(open(filepath).read())
             metafunc.parametrize(fixture, yamldata["tests"])
 
 
-def test_msg_split(data_msg_split):
+def test_msg_split(data_msg_split: Mapping[str, Any]) -> None:
     """Test an msg-split test fixture.
 
     Parse a raw, wire protocol message, and check whether all of the
@@ -61,7 +65,7 @@ def test_msg_split(data_msg_split):
         assert parsed.source is None
 
 
-def test_msg_join(data_msg_join):
+def test_msg_join(data_msg_join: Mapping[str, Any]) -> None:
     """Test an msg-join test fixture.
 
     Take the individual atoms, build a wire protocol message and check whether

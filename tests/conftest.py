@@ -1,7 +1,18 @@
 """Testing initialization."""
 
+from __future__ import annotations
+
 import configparser
+import logging
+import socketserver
 import threading
+from typing import (
+    Any,
+    Generator,
+    List,
+    Type,
+    TypeVar,
+)
 
 import ircstream
 
@@ -12,7 +23,12 @@ import pytest
 import structlog
 
 
-def start_server_in_thread(cls, config, *args):
+BaseServerCls = TypeVar("BaseServerCls", bound=socketserver.BaseServer)
+
+
+def start_server_in_thread(
+    cls: Type[BaseServerCls], config: configparser.SectionProxy, *args: Any
+) -> Generator[BaseServerCls, None, None]:
     """Start a socketserver in a thread, yield, and cleanly shut it down."""
     server = cls(config, *args)
     thread = threading.Thread(name=config.name, target=server.serve_forever)
@@ -29,14 +45,16 @@ def start_server_in_thread(cls, config, *args):
 def fixture_configure_structlog() -> None:
     """Fixture to configure structlog. Currently just silences it entirely."""
 
-    def dummy_processor(logger, name, event_dict):
+    def dummy_processor(
+        logger: logging.Logger, name: str, event_dict: structlog.types.EventDict
+    ) -> structlog.types.EventDict:
         raise structlog.exceptions.DropEvent
 
     structlog.configure(processors=[dummy_processor])
 
 
 @pytest.fixture(name="config", scope="module")
-def fixture_config():
+def fixture_config() -> Generator[configparser.ConfigParser, None, None]:
     """Fixture representing an example configuration."""
     config = configparser.ConfigParser()
     config.read_string(
@@ -68,7 +86,7 @@ def fixture_config():
 
 
 @pytest.fixture(name="ircserver", scope="module")
-def fixture_ircserver(config):
+def fixture_ircserver(config: configparser.ConfigParser) -> Generator[ircstream.IRCServer, None, None]:
     """Fixture for an instance of an IRCServer.
 
     This spawns a thread to run the server. It yields the IRCServer instance,
@@ -79,8 +97,8 @@ def fixture_ircserver(config):
 
     # set up a fake EXCEPTION command handler, that raises an exception
     # useful to test whether exceptions are actually being caught!
-    def handle_raiseexc(self, params):
+    def handle_raiseexc(self: ircstream.IRCClient, _: List[str]) -> None:
         raise Exception("Purposefully triggered exception")
 
-    ircstream.IRCClient.handle_raiseexc = handle_raiseexc
+    ircstream.IRCClient.handle_raiseexc = handle_raiseexc  # type: ignore
     yield from start_server_in_thread(ircstream.IRCServer, config["irc"])

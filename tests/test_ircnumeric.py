@@ -1,5 +1,7 @@
 """Test the IRCNumeric class, including RPL and ERR."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Dict, Set
 

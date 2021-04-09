@@ -5,10 +5,12 @@ invalid commands, not respond to PING etc., so emulate the IRC protocol
 manually, using a raw socket.
 """
 
+from __future__ import annotations
+
 import ctypes
 import socket
 import time
-from typing import Sequence
+from typing import Generator, Sequence
 from unittest.mock import Mock
 
 import ircstream
@@ -41,12 +43,12 @@ class BareClient:  # pylint: disable=too-few-public-methods
 
 
 @pytest.fixture(name="clientsock")
-def clientsock_fixture(ircserver) -> BareClient:
+def clientsock_fixture(ircserver: ircstream.IRCServer) -> BareClient:
     """Return an instance of our fake/raw IRC client."""
     return BareClient(ircserver.address, ircserver.port)
 
 
-def test_no_eventfd(monkeypatch, ircserver):
+def test_no_eventfd(monkeypatch: pytest.MonkeyPatch, ircserver: ircstream.IRCServer) -> None:
     """Test codepaths where eventfd() is not available."""
     with monkeypatch.context() as mpcontext:
         # pretend ctypes.CDLL("libc.so.6") failed
@@ -61,12 +63,12 @@ def test_no_eventfd(monkeypatch, ircserver):
         assert any(b"001 nick" in response for response in data)
 
 
-def test_premature_close(clientsock):
+def test_premature_close(clientsock: BareClient) -> None:
     """Test the handling of a premature close, right after connecting."""
     clientsock.close()
 
 
-def test_premature_close2(clientsock):
+def test_premature_close2(clientsock: BareClient) -> None:
     """Test the handling of a premature close, with the send buffer full."""
     clientsock.sendall(b"NICK nick\n")
     clientsock.sendall(b"USER one two three four\n")
@@ -75,7 +77,7 @@ def test_premature_close2(clientsock):
 
 
 @pytest.fixture(name="ircserver_short_timeout")
-def fixture_ircserver_short_timeout(ircserver):
+def fixture_ircserver_short_timeout(ircserver: ircstream.IRCServer) -> Generator[ircstream.IRCServer, None, None]:
     """Return an IRCServer modified to run with a very short timeout.
 
     This is a separate fixture to make sure that the default value is restored
@@ -92,7 +94,7 @@ def fixture_ircserver_short_timeout(ircserver):
     ircserver.client_timeout = default_timeout
 
 
-def test_ping_timeout(ircserver_short_timeout, clientsock):
+def test_ping_timeout(ircserver_short_timeout: ircstream.IRCServer, clientsock: BareClient) -> None:
     """Test a PING timeout condition."""
     # wait at least until the ping timeout interval
     time.sleep(ircserver_short_timeout.client_timeout)
@@ -112,7 +114,7 @@ def test_ping_timeout(ircserver_short_timeout, clientsock):
     assert ping_timedout
 
 
-def test_preregister_command(clientsock):
+def test_preregister_command(clientsock: BareClient) -> None:
     """Test sending a command that is not valid before registration."""
     clientsock.sendall(b"WHOIS noone\n")
     data = clientsock.readlines()
@@ -120,7 +122,7 @@ def test_preregister_command(clientsock):
     assert b"451 * :You have not registered" in data[0]
 
 
-def test_erroneous(clientsock):
+def test_erroneous(clientsock: BareClient) -> None:
     """Test erroneous parameters."""
     clientsock.sendall(b"USER one two three four\n")
 
@@ -137,7 +139,7 @@ def test_erroneous(clientsock):
     assert data == []
 
 
-def test_unicodeerror(ircserver, clientsock):
+def test_unicodeerror(ircserver: ircstream.IRCServer, clientsock: BareClient) -> None:
     """Test for UnicodeError handling in both directions."""
     clientsock.sendall(b"USER one two three four\n")
     clientsock.sendall(b"NICK nick\n")
@@ -160,7 +162,11 @@ def test_unicodeerror(ircserver, clientsock):
     assert data == []
 
 
-def test_broadcast_failure(monkeypatch, clientsock, ircserver):
+def test_broadcast_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    clientsock: BareClient,
+    ircserver: ircstream.IRCServer,
+) -> None:
     """Test that exceptions in the broadcast() method are handled."""
     # login to the client (normal)
     clientsock.sendall(b"USER one two three four\n")
@@ -182,7 +188,7 @@ def test_broadcast_failure(monkeypatch, clientsock, ircserver):
         ircserver.broadcast("#channel", "should fail silently")
 
 
-def test_redundant(clientsock):
+def test_redundant(clientsock: BareClient) -> None:
     """Test redundant parameters in commands that allow it."""
     # five arguments for USER
     clientsock.sendall(b"PASS password\n")
@@ -201,7 +207,7 @@ def test_redundant(clientsock):
     assert any(b"401 nick second :No such nick/channel" in response for response in data)
 
 
-def test_exception(clientsock):
+def test_exception(clientsock: BareClient) -> None:
     """Test whether our injected EXCEPTION handler works."""
     # register
     clientsock.sendall(b"USER one two three four\n")

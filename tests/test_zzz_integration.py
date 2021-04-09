@@ -1,12 +1,15 @@
 """Test as much of the functionality as possible at a high-level."""
 
+from __future__ import annotations
+
 import http.client
 import multiprocessing
 import multiprocessing.synchronize
+import pathlib
 import socket
 import threading
 import time
-from typing import Any
+from typing import Any, Generator
 
 import irc.client  # type: ignore
 import irc.connection  # type: ignore
@@ -26,7 +29,7 @@ PORTS = {
 }
 
 
-class IRCMessageCounter(irc.client.SimpleIRCClient):
+class IRCMessageCounter(irc.client.SimpleIRCClient):  # type: ignore
     """Basic IRC Client, used for counting received messages.
 
     This connects, identifies, joins a channel, and then counts incoming events
@@ -40,28 +43,28 @@ class IRCMessageCounter(irc.client.SimpleIRCClient):
         self.received = received
         super().__init__()
 
-    def connect(self, *args, **kwargs):
+    def connect(self, *args: Any, **kwargs: Any) -> None:
         """Override the method to add transparent IPv6 support."""
         if args and ":" in args[0]:
             kwargs["connect_factory"] = irc.connection.Factory(ipv6=True)
         super().connect(*args, **kwargs)
 
-    def on_welcome(self, connection, _):
+    def on_welcome(self, connection: irc.connection.Factory, _: irc.client.Event) -> None:
         """Join the channel immediately after identifying."""
         connection.join(self.channel)
 
-    def on_join(self, _, __):
+    def on_join(self, _: irc.connection.Factory, __: irc.client.Event) -> None:
         """Set the ready event after a channel was joined."""
         self.ready.set()
 
-    def on_pubmsg(self, _, __):
+    def on_pubmsg(self, _: irc.connection.Factory, __: irc.client.Event) -> None:
         """Increase the received counter after a message was received."""
         with self.received.get_lock():
             self.received.value += 1
 
 
 @pytest.fixture(name="main")
-def fixture_main(tmp_path):
+def fixture_main(tmp_path: pathlib.Path) -> Generator[threading.Thread, None, None]:
     """Fixture for ircstream.main, running it in a thread."""
     # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
     prometheus_client.REGISTRY.__init__()
@@ -121,7 +124,7 @@ def spawn_client_process(channel: str, counter: Any) -> multiprocessing.Process:
     """Spawn an IRC message counter client into a separate process."""
     ready_to_receive = multiprocessing.Event()
 
-    def spawn_client():
+    def spawn_client() -> None:
         ircclient = IRCMessageCounter(channel, counter, ready_to_receive)
         ircclient.connect(SERVER_IP, PORTS["irc"], "rc-bot")
         ircclient.start()
@@ -141,7 +144,7 @@ def send_to_rc2udp(channel: str, count: int, message: str = "message") -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rawdata = f"{channel}\t{message}".encode()
 
-    def send_in_process():
+    def send_in_process() -> None:
         for _ in range(0, count):
             sock.sendto(rawdata, (SERVER_IP, PORTS["rc2udp"]))
 
@@ -151,7 +154,7 @@ def send_to_rc2udp(channel: str, count: int, message: str = "message") -> None:
 
 
 @pytest.mark.usefixtures("main")
-def test_out_of_the_box():
+def test_out_of_the_box() -> None:
     """Tests the out-of-the-box experience of the server.
 
     Tests the server with multiple clients and multiple messages being passed

@@ -1,5 +1,11 @@
 """Test an instance of our IRCServer, using a Python IRC client."""
 
+from __future__ import annotations
+
+from typing import Generator
+
+import ircstream
+
 import pytest
 
 from .ircclient import IRCClientThread
@@ -8,7 +14,7 @@ BOTNAME = "testsuite-bot"
 
 
 @pytest.fixture(name="ircclient", scope="module")
-def ircclient_instance(ircserver):
+def ircclient_instance(ircserver: ircstream.IRCServer) -> Generator[IRCClientThread, None, None]:
     """Fixture for an instance of an IRCClient."""
     ircclient = IRCClientThread()
     ircclient.start()
@@ -24,7 +30,7 @@ def ircclient_instance(ircserver):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_ping(ircclient):
+def test_ping(ircclient: IRCClientThread) -> None:
     """Test the PING command."""
     ircclient.connection.ping("there")
     assert ircclient.expect("pong", arguments=["there"])
@@ -33,7 +39,7 @@ def test_ping(ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_pong(ircserver, ircclient):
+def test_pong(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the PONG command (a server-side ping)."""
     # save the old timeout
     default_timeout = ircserver.client_timeout
@@ -49,7 +55,7 @@ def test_pong(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_who(ircclient):
+def test_who(ircclient: IRCClientThread) -> None:
     """Test the WHO command."""
     ircclient.connection.who(BOTNAME)
     assert ircclient.expect("endofwho")
@@ -59,7 +65,7 @@ def test_who(ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_mode(ircserver, ircclient):
+def test_mode(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the MODE command."""
     # channel modes
     ircclient.connection.mode("", "")
@@ -89,7 +95,7 @@ def test_mode(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_whois(ircserver, ircclient):
+def test_whois(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the WHOIS command."""
     ircclient.connection.whois([ircserver.botname])
     assert ircclient.expect("whoisuser")
@@ -109,7 +115,7 @@ def test_whois(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_whowas(ircserver, ircclient):
+def test_whowas(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the WHOWAS command."""
     ircclient.connection.whowas(ircserver.botname)
     assert ircclient.expect("wasnosuchnick")
@@ -124,7 +130,7 @@ def test_whowas(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_nick(ircclient):
+def test_nick(ircclient: IRCClientThread) -> None:
     """Test the NICK command."""
     ircclient.connection.nick("")
     assert ircclient.expect("nonicknamegiven")
@@ -146,7 +152,7 @@ def test_nick(ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_user(ircclient):
+def test_user(ircclient: IRCClientThread) -> None:
     """Test the USER command."""
     ircclient.connection.user("", "")
     assert ircclient.expect("needmoreparams")
@@ -156,7 +162,7 @@ def test_user(ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_join(ircserver, ircclient):
+def test_join(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the JOIN command."""
     ircclient.connection.join("")
     assert ircclient.expect("needmoreparams")
@@ -178,7 +184,7 @@ def test_join(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_part(ircclient):
+def test_part(ircclient: IRCClientThread) -> None:
     """Test the PART command."""
     ircclient.connection.part("")
     assert ircclient.expect("needmoreparams")
@@ -193,7 +199,7 @@ def test_part(ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_topic(ircserver, ircclient):
+def test_topic(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the TOPIC command."""
     ircclient.connection.topic("")
     assert ircclient.expect("needmoreparams")
@@ -218,7 +224,7 @@ def test_topic(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_names(ircserver, ircclient):
+def test_names(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the NAMES command."""
     ircclient.connection.names("")
     assert ircclient.expect("endofnames")
@@ -229,7 +235,7 @@ def test_names(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_privmsg(ircserver, ircclient):
+def test_privmsg(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the PRIVMSG command."""
     ircclient.connection.privmsg("", "")
     assert ircclient.expect("needmoreparams")
@@ -250,7 +256,7 @@ def test_privmsg(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_notice(ircserver, ircclient):
+def test_notice(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the NOTICE command."""
     ircclient.connection.notice("", "")
     assert ircclient.expect("needmoreparams")
@@ -265,7 +271,7 @@ def test_notice(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_list(ircserver, ircclient):
+def test_list(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test the LIST command."""
     ircclient.connection.list()
     assert ircclient.expect("listend")
@@ -280,14 +286,14 @@ def test_list(ircserver, ircclient):
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_nonexistent(ircclient):
+def test_nonexistent(ircclient: IRCClientThread) -> None:
     """Test a non-existent command."""
     ircclient.connection.send_raw("NONEXISTENT :nonarg")
     assert ircclient.expect("unknowncommand")
 
 
 @pytest.mark.usefixtures("ircserver")
-def test_conversation(ircserver, ircclient):
+def test_conversation(ircserver: ircstream.IRCServer, ircclient: IRCClientThread) -> None:
     """Test a scenario of a hypothetic real client/conversation."""
     ircserver.broadcast("#one-channel", "create the channel")
 

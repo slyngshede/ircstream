@@ -1,6 +1,9 @@
 """Argument parse tests."""
 
+from __future__ import annotations
+
 import json
+import pathlib
 from unittest.mock import ANY, Mock
 
 import ircstream
@@ -10,7 +13,7 @@ import pytest
 import structlog
 
 
-def test_parse_args_help(capsys):
+def test_parse_args_help(capsys: pytest.CaptureFixture[str]) -> None:
     """Test whether --help returns usage and exits."""
     with pytest.raises(SystemExit) as exc:
         ircstream.parse_args(["--help"])
@@ -20,7 +23,7 @@ def test_parse_args_help(capsys):
     assert "usage: " in out
 
 
-def test_configure_logging_plain(caplog):
+def test_configure_logging_plain(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the plain logging configuration works."""
     ircstream.configure_logging("plain")
     log = structlog.get_logger("testlogger")
@@ -29,7 +32,7 @@ def test_configure_logging_plain(caplog):
     assert ["this is a test log"] == [rec.message for rec in caplog.records]
 
 
-def test_configure_logging_console(caplog):
+def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the console logging configuration works."""
     ircstream.configure_logging("plain")  # needed to override the default noop config in testing
     ircstream.configure_logging("console")
@@ -39,7 +42,7 @@ def test_configure_logging_console(caplog):
     assert ["[warning  ] this is a test log"] == [rec.message for rec in caplog.records]
 
 
-def test_configure_logging_json(caplog):
+def test_configure_logging_json(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the json logging configuration works."""
     ircstream.configure_logging("json")
     log = structlog.get_logger("testlogger")
@@ -51,13 +54,13 @@ def test_configure_logging_json(caplog):
     assert ["value"] == [rec["key"] for rec in parsed_logs]
 
 
-def test_configure_logging_invalid():
+def test_configure_logging_invalid() -> None:
     """Test that an invalid logging configuration does not work."""
     with pytest.raises(ValueError):
         ircstream.configure_logging("invalid")
 
 
-def test_main(monkeypatch, tmp_path, caplog):
+def test_main(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture) -> None:
     """Test the main/entry point function."""
     tmp_config = tmp_path / "ircstream-regular.conf"
     tmp_config.write_text(
@@ -94,7 +97,7 @@ def test_main(monkeypatch, tmp_path, caplog):
     assert "Address already in use" in caplog.records[-1].message
 
 
-def test_main_config_nonexistent(caplog):
+def test_main_config_nonexistent(caplog: pytest.LogCaptureFixture) -> None:
     """Test with non-existing configuration."""
     args = ("--config", "/nonexistent")
 
@@ -107,7 +110,12 @@ def test_main_config_nonexistent(caplog):
 
 
 @pytest.mark.parametrize("test_config", ["[rc2udp]\n[prometheus]\n", "invalid config"])
-def test_main_config_invalid(tmp_path, monkeypatch, caplog, test_config):
+def test_main_config_invalid(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    test_config: str,
+) -> None:
     """Test the main/entry point function (without an IRC config)."""
     tmp_config = tmp_path / "ircstream-invalid.conf"
     tmp_config.write_text(test_config)
@@ -125,7 +133,7 @@ def test_main_config_invalid(tmp_path, monkeypatch, caplog, test_config):
     assert "Invalid configuration" in caplog.records[-1].message
 
 
-def test_main_section_no_optional(tmp_path, monkeypatch):
+def test_main_section_no_optional(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test the main/entry point function (without optional config)."""
     tmp_config = tmp_path / "ircstream-nooptional.conf"
     tmp_config.write_text(
