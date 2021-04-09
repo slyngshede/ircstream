@@ -173,7 +173,7 @@ class IRCMessage:
         try:
             command = parts[0].upper()
         except IndexError:
-            raise ValueError("Invalid IRC message (no command specified)")
+            raise ValueError("Invalid IRC message (no command specified)") from None
 
         original_params = parts[1:]
         params = []
@@ -348,7 +348,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             data = self.request.recv(1024)
         except Exception:
-            raise self.Disconnect()
+            raise self.Disconnect() from None
 
         if not data:
             raise self.Disconnect()
@@ -443,7 +443,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             target = params[0]
         except IndexError:
-            raise IRCError(ERR.NEEDMOREPARAMS, ["MODE", "Not enough parameters"])
+            raise IRCError(ERR.NEEDMOREPARAMS, ["MODE", "Not enough parameters"]) from None
 
         modestring: Optional[str]
         try:
@@ -510,7 +510,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             nick = params[0]
         except IndexError:
-            raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given")
+            raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given") from None
 
         self.msg(ERR.WASNOSUCHNICK, [nick, "There was no such nickname"])
         self.msg(RPL.ENDOFWHOWAS, [nick, "End of WHOWAS"])
@@ -520,7 +520,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             nick = params[0]
         except IndexError:
-            raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given")
+            raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given") from None
 
         # is this a valid nickname?
         if not re.fullmatch(r"[\w\d\-\[\]'`\^{}_]+", nick) or len(nick) < 2 or len(nick) > 30:
@@ -540,7 +540,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             user, _, _, realname = params[:4]
         except ValueError:
-            raise IRCError(ERR.NEEDMOREPARAMS, ["USER", "Not enough parameters"])
+            raise IRCError(ERR.NEEDMOREPARAMS, ["USER", "Not enough parameters"]) from None
 
         if self.user:
             raise IRCError(ERR.ALREADYREGISTERED, "You may not reregister")
@@ -601,7 +601,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             origin = params[0]
         except IndexError:
-            raise IRCError(ERR.NOORIGIN, "No origin specified")
+            raise IRCError(ERR.NOORIGIN, "No origin specified") from None
 
         try:
             destination = params[1]
@@ -619,7 +619,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             channels = params[0]  # ignore param 1, i.e. channel keys
         except IndexError:
-            raise IRCError(ERR.NEEDMOREPARAMS, ["JOIN", "Not enough parameters"])
+            raise IRCError(ERR.NEEDMOREPARAMS, ["JOIN", "Not enough parameters"]) from None
 
         for channel in channels.split(","):
             channel = channel.strip()
@@ -651,7 +651,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             channel = params[0]
         except IndexError:
-            raise IRCError(ERR.NEEDMOREPARAMS, ["TOPIC", "Not enough parameters"])
+            raise IRCError(ERR.NEEDMOREPARAMS, ["TOPIC", "Not enough parameters"]) from None
 
         if channel not in self.channels:
             raise IRCError(ERR.NOTONCHANNEL, [channel, "You're not on that channel"])
@@ -696,7 +696,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             targets, msg = params[:2]
         except ValueError:
-            raise IRCError(ERR.NEEDMOREPARAMS, ["PRIVMSG", "Not enough parameters"])
+            raise IRCError(ERR.NEEDMOREPARAMS, ["PRIVMSG", "Not enough parameters"]) from None
 
         for target in targets.split(","):
             target = target.strip()
@@ -717,7 +717,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             targets, msg = params[:2]
         except ValueError:
-            raise IRCError(ERR.NEEDMOREPARAMS, ["NOTICE", "Not enough parameters"])
+            raise IRCError(ERR.NEEDMOREPARAMS, ["NOTICE", "Not enough parameters"]) from None
 
         if self.nick in targets.split(","):
             self.msg("NOTICE", [self.nick, msg])  # echo back
@@ -727,7 +727,7 @@ class IRCClient(socketserver.BaseRequestHandler):
         try:
             channels = params[0]
         except IndexError:
-            raise IRCError(ERR.NEEDMOREPARAMS, ["PART", "Not enough parameters"])
+            raise IRCError(ERR.NEEDMOREPARAMS, ["PART", "Not enough parameters"]) from None
 
         for channel in channels.split(","):
             channel = channel.strip()
@@ -1019,11 +1019,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             config.read_file(config_fh)
     except OSError as exc:
         log.critical(f"Cannot open configuration file: {exc.strerror}", errno=errno.errorcode[exc.errno])
-        raise SystemExit(-1)
+        raise SystemExit(-1) from exc
     except configparser.Error as exc:
         msg = repr(exc).replace("\n", " ")  # configparser exceptions sometimes include newlines
         log.critical(f"Invalid configuration, {msg}")
-        raise SystemExit(-1)
+        raise SystemExit(-1) from exc
 
     try:
         if "irc" in config:
@@ -1046,7 +1046,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         return
     except OSError as exc:
         log.critical(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
-        raise SystemExit(-2)
+        raise SystemExit(-2) from exc
 
 
 if __name__ == "__main__":
