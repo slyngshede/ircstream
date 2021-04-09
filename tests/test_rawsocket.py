@@ -58,7 +58,7 @@ def test_no_eventfd(monkeypatch, ircserver):
         clientsock.sendall(b"NICK nick\n")
         clientsock.sendall(b"USER one two three four\n")
         data = clientsock.readlines()
-        assert any([b"001 nick" in response for response in data])
+        assert any(b"001 nick" in response for response in data)
 
 
 def test_premature_close(clientsock):
@@ -126,11 +126,11 @@ def test_erroneous(clientsock):
 
     clientsock.sendall(b"NICK /invalid\n")
     data = clientsock.readlines()
-    assert any([b"432 *" in response for response in data])
+    assert any(b"432 *" in response for response in data)
 
     clientsock.sendall(b"NICK " + b"a" * 100 + b"\n")
     data = clientsock.readlines()
-    assert any([b"432 *" in response for response in data])
+    assert any(b"432 *" in response for response in data)
 
     clientsock.sendall(b":NOCOMMAND\n")
     data = clientsock.readlines()
@@ -142,7 +142,7 @@ def test_unicodeerror(ircserver, clientsock):
     clientsock.sendall(b"USER one two three four\n")
     clientsock.sendall(b"NICK nick\n")
     data = clientsock.readlines()
-    assert any([b"001 nick" in response for response in data])
+    assert any(b"001 nick" in response for response in data)
 
     clientsock.sendall(b"WHOIS \x80\n")  # 0x80 is invalid unicode
     data = clientsock.readlines()
@@ -151,7 +151,7 @@ def test_unicodeerror(ircserver, clientsock):
     ircserver.broadcast("#channel", "create the channel")
     clientsock.sendall(b"JOIN #channel\n")
     data = clientsock.readlines()
-    assert any([b"JOIN #channel" in response for response in data])
+    assert any(b"JOIN #channel" in response for response in data)
 
     # this creates a string that will fail .encode("utf8")
     unencodeable_utf8 = "unencodeable " + b"\x80".decode("utf8", "surrogateescape")
@@ -166,13 +166,13 @@ def test_broadcast_failure(monkeypatch, clientsock, ircserver):
     clientsock.sendall(b"USER one two three four\n")
     clientsock.sendall(b"NICK nick\n")
     data = clientsock.readlines()
-    assert any([b"001 nick" in response for response in data])
+    assert any(b"001 nick" in response for response in data)
 
     # create and join a channel (also normal)
     ircserver.broadcast("#channel", "create the channel")
     clientsock.sendall(b"JOIN #channel\n")
     data = clientsock.readlines()
-    assert any([b"JOIN #channel" in response for response in data])
+    assert any(b"JOIN #channel" in response for response in data)
 
     # ...and now actually test
     with monkeypatch.context() as mpcontext:
@@ -189,16 +189,16 @@ def test_redundant(clientsock):
     clientsock.sendall(b"USER one two three four redundant\n")
     clientsock.sendall(b"NICK nick\n")
     data = clientsock.readlines()
-    assert any([b"001 nick" in response for response in data])
+    assert any(b"001 nick" in response for response in data)
 
     clientsock.sendall(b"PASS password\n")
     data = clientsock.readlines()
-    assert any([b"462 nick :You may not reregister" in response for response in data])
+    assert any(b"462 nick :You may not reregister" in response for response in data)
 
     # two arguments for WHOIS
     clientsock.sendall(b"WHOIS nick second\n")
     data = clientsock.readlines()
-    assert any([b"401 nick second :No such nick/channel" in response for response in data])
+    assert any(b"401 nick second :No such nick/channel" in response for response in data)
 
 
 def test_exception(clientsock):
@@ -207,7 +207,7 @@ def test_exception(clientsock):
     clientsock.sendall(b"USER one two three four\n")
     clientsock.sendall(b"NICK nick\n")
     data = clientsock.readlines()
-    assert any([b"001 nick" in response for response in data])
+    assert any(b"001 nick" in response for response in data)
 
     # needs registration
     clientsock.sendall(b"RAISEEXC\n")
