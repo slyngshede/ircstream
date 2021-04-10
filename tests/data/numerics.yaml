@@ -13,7 +13,7 @@
 
 file:
     type: "numerics"
-    revision: "1.62"
+    revision: "1.63"
 
 # The following information is used to create pretty HTML page and tables
 
@@ -719,11 +719,15 @@ values:
         name: RPL_STATSOLINE
         numeric: "243"
         origin: RFC1459
-        format: "<client> O <hostmask> * <nick> [:<info>]"
+        format: "<client> O <hostmask> * <opername> [<privileges>] <class>"
         comment: >
-            Reply to STATS (See RFC); The info field is an extension found
-            in some IRC daemons, which returns info such as an e-mail
-            address or the name/job of an operator
+            Reply to STATS O (See RFC); The privileges field is an extension
+            in some IRC daemons, which returns either the name of a set of privileges,
+            or a set of privileges. The class extension field returns which
+            connection class the o-line applies to (this is also know to be
+            placeholders like "0" and "-1" when inapplicable.)
+            ircu doesn't have the privileges field and irc2 uses it to display
+            which port, if any, the oper is restricted to.
 
     -
         name: RPL_STATSHLINE
@@ -1031,7 +1035,7 @@ values:
         name: RPL_WHOISCERTFP
         numeric: "276"
         origin: oftc-hybrid
-        format: "<nick> :has client certificate fingerprint <fingerprint>"
+        format: "<client> <nick> :has client certificate fingerprint <fingerprint>"
         comment: >
             Shows the SSL/TLS certificate fingerprint used by the client with
             the given nickname. Only sent when users `"WHOIS"`
@@ -2886,6 +2890,12 @@ values:
         name: ERR_LINKCHANNEL
         numeric: "470"
         origin: Unreal
+        comment: >
+            Sent by a server to a user who tried to JOIN a channel, when they
+            are forwarded to a different channel because they could not join
+            the original one.
+            The target channel is usually configured with +f (eg. Charybdis)
+            or +L (eg. Unreal)
         conflict: true
 
     -
@@ -3140,19 +3150,7 @@ values:
         name: ERR_NONONREG
         numeric: "486"
         origin: Unreal?
-        conflict: true
-
-    -
-        name: ERR_HTMDISABLED
-        numeric: "486"
-        origin: Unreal
-        conflict: true
-        comment: "Unreal 3.2 uses 488 as the ERR_HTMDISABLED numeric instead"
-
-    -
-        name: ERR_ACCOUNTONLY
-        numeric: "486"
-        origin: QuakeNet
+        comment: Also known as ERR_ACCOUNTONLY.
         conflict: true
 
     -
@@ -3160,6 +3158,13 @@ values:
         numeric: "486"
         origin: rusnet-ircd
         conflict: true
+
+    -
+        name: ERR_HTMDISABLED
+        numeric: "486"
+        origin: Unreal
+        obsolete: true
+        comment: "Unreal 3.2 uses 488 as the ERR_HTMDISABLED numeric instead"
 
     -
         name: ERR_CHANTOORECENT
@@ -4550,6 +4555,14 @@ values:
         origin: Ithildin
         contact: "mailto:wd@telekinesis.org"
         comment: Termination of an RPL_XINFO list
+
+    -
+        name: RPL_STATSCOUNTRY
+        numeric: "801"
+        origin: InspIRCd 3.0
+        contact: "https://github.com/inspircd/inspircd/blob/master/src/modules/m_geoclass.cpp"
+        format: "<count> <code> :<country>"
+        comment: Used by the m_geoclass module of InspIRCd.
 
     -
         name: RPL_CHECK
