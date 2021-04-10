@@ -3,8 +3,8 @@ Upstream-Name: ircstream
 Source: https://github.com/wikimedia/ircstream
 
 Files: *
-Copyright: Faidon Liambotis
-           Wikimedia Foundation, Inc.
+Copyright: 2017-2021 Faidon Liambotis
+           2017-2021 Wikimedia Foundation, Inc.
 License: Apache-2.0
 
 Files: debian/*

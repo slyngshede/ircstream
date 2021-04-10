@@ -2,11 +2,22 @@
 Description=ircstream
 After=local-fs.target
 After=network.target
+ConditionPathExists=/etc/ircstream.conf
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/ircstream
 LimitNOFILE=65536
+
+# Hardening
+DynamicUser=true
+ProtectSystem=strict
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+PrivateDevices=true
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
