@@ -581,11 +581,13 @@ class IRCClient(asyncio.Protocol):
 
             # is this a valid channel name?
             if not re.fullmatch(r"#([\w\d_\.-])+", channel) or len(channel) > 50:
-                raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
+                self.msg(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
+                continue
 
             # check if channel already exists (clients cannot create channels)
             if channel not in self.server.channels:
-                raise IRCError(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
+                self.msg(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
+                continue
 
             self.server.subscribe(channel, self)  # add to the server's (global) list
             self.channels.add(channel)  # add channel to client's own channel list
