@@ -239,6 +239,7 @@ class IRCClient(asyncio.Protocol):
         self.last_heard = self.signon
         self.ping_sent = False
         self.buffer = b""
+        self.eof = False
         self.user, self.realname, self.nick = "", "", ""
         self.channels: Set[str] = set()
         self.transport: asyncio.Transport = None  # type: ignore
@@ -262,6 +263,17 @@ class IRCClient(asyncio.Protocol):
         self.server.metrics["clients"].inc()
         self._periodic_ping_task = asyncio.create_task(self._periodic_ping())
 
+    def terminate(self) -> None:
+        """Terminates the connection."""
+        # set before the call to write_eof() so that if it fails mid-stream, we avoid subsequent write()s
+        self.eof = True
+        try:
+            self.transport.write_eof()
+        except OSError as exc:
+            if exc.errno != errno.ENOTCONN:
+                self.log.debug("Unknown error in terminate", errno=exc.errno)
+        self.transport.close()
+
     async def _periodic_ping(self) -> None:
         while True:
             await asyncio.sleep(self.server.client_timeout / 2)
@@ -273,7 +285,7 @@ class IRCClient(asyncio.Protocol):
             delta = datetime.datetime.utcnow() - self.last_heard
             if delta > datetime.timedelta(seconds=timeout):
                 self.msg("ERROR", "Closing Link: (Ping timeout)")
-                self.transport.write_eof()
+                self.terminate()
 
             # if it's N/2 seconds since the last PONG, send a PING
             if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.registered:
@@ -357,6 +369,8 @@ class IRCClient(asyncio.Protocol):
 
     def send(self, msg: str) -> None:
         """Send a message to a connected client."""
+        if self.eof:
+            return
         msg = msg[:510]  # 512 including CRLF; RFC 2813, section 3.3
         self.log.debug("Data sent", message=msg)
         try:
@@ -702,7 +716,7 @@ class IRCClient(asyncio.Protocol):
         except IndexError:
             reason = "No reason"
         self.msg("ERROR", f"Closing Link: (Quit: {reason})")
-        self.transport.write_eof()
+        self.terminate()
 
     @property
     def registered(self) -> bool:
