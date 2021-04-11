@@ -32,20 +32,21 @@ def fixture_configure_structlog() -> None:
     structlog.configure(processors=[dummy_processor])
 
 
-@pytest.fixture(name="config", scope="module")
-def fixture_config() -> Generator[configparser.ConfigParser, None, None]:
+@pytest.fixture(name="config", scope="module", params=["127.0.0.1", "::1"])
+def fixture_config(request: pytest.FixtureRequest) -> Generator[configparser.ConfigParser, None, None]:
     """Fixture representing an example configuration."""
+    listen_address = request.param  # type: ignore # pytest bug?
     config = configparser.ConfigParser()
     config.read_string(
-        """
+        f"""
         [irc]
-        listen_address = ::
+        listen_address = {listen_address}
         # pick a random free port (not 6667!)
         listen_port = 0
         servername = irc.example.org
         network = Example
         botname = rc-bot
-        topic_tmpl = Test topic for {channel}
+        topic_tmpl = Test topic for {{channel}}
         welcome_msg =
           *******************************************************
           This is a test IRC instance
@@ -53,11 +54,11 @@ def fixture_config() -> Generator[configparser.ConfigParser, None, None]:
           Sending messages to channels is not allowed.
 
         [rc2udp]
-        listen_address = ::
+        listen_address = {listen_address}
         listen_port = 0
 
         [prometheus]
-        listen_address = ::
+        listen_address = {listen_address}
         listen_port = 0
         """
     )
