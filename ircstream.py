@@ -41,7 +41,6 @@ import http.server
 import logging
 import re
 import socket
-import socketserver
 import sys
 from typing import (
     Any,
@@ -744,29 +743,6 @@ class IRCClient(asyncio.Protocol):
         return f"<{self.__class__.__name__} {self.internal_ident}>"
 
 
-class DualstackServerMixIn(socketserver.BaseServer):
-    """BaseServer mix-in to support dual-stack servers.
-
-    This forces AF_INET6 allowing addresses from both families to be given.  It
-    also setsockopts(IPV6_V6ONLY, 0), essentially allowing an address of :: to
-    capture both IPv4/IPv6 traffic with just one socket.
-    """
-
-    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: type) -> None:
-        if ":" in server_address[0]:
-            self.address_family = socket.AF_INET6
-        super().__init__(server_address, RequestHandlerClass)
-
-    def server_bind(self) -> None:
-        """Bind to an IP address.
-
-        Override to set an opt to listen to both IPv4/IPv6 on the same socket.
-        """
-        if self.address_family == socket.AF_INET6:
-            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        super().server_bind()
-
-
 class IRCServer:
     """A socketserver TCPServer instance representing an IRC server."""
 
@@ -891,7 +867,7 @@ class RC2UDPServer:  # pylint: disable=too-few-public-methods
         self.log.info("Listening for RC2UDP broadcast", listen_address=self.address, listen_port=self.port)
 
 
-class PrometheusServer(DualstackServerMixIn, http.server.ThreadingHTTPServer):
+class PrometheusServer(http.server.ThreadingHTTPServer):
     """A Prometheus HTTP server."""
 
     log = structlog.get_logger("ircstream.prometheus")
@@ -904,10 +880,21 @@ class PrometheusServer(DualstackServerMixIn, http.server.ThreadingHTTPServer):
         registry: prometheus_client.CollectorRegistry = prometheus_client.REGISTRY,
     ) -> None:
         listen_address = config.get("listen_address", fallback="::")
+        if ":" in listen_address:
+            self.address_family = socket.AF_INET6
         listen_port = config.getint("listen_port", fallback=9200)
         super().__init__((listen_address, listen_port), prometheus_client.MetricsHandler.factory(registry))
         self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
         self.log.info("Listening for Prometheus HTTP", listen_address=self.address, listen_port=self.port)
+
+    def server_bind(self) -> None:
+        """Bind to an IP address.
+
+        Override to set an opt to listen to both IPv4/IPv6 on the same socket.
+        """
+        if self.address_family == socket.AF_INET6:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
 
 
 def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
