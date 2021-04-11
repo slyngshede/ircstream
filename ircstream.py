@@ -967,7 +967,7 @@ async def start_servers(config: configparser.ConfigParser) -> None:
         if "irc" in config:
             ircserver = IRCServer(config["irc"])
             irc_coro = ircserver.serve()
-            asyncio.create_task(irc_coro)
+            irc_task = asyncio.create_task(irc_coro)
         else:
             log.critical('Invalid configuration, missing section "irc"')
             raise SystemExit(-1)
@@ -985,7 +985,7 @@ async def start_servers(config: configparser.ConfigParser) -> None:
             server.socket.setblocking(False)
             loop.add_reader(server.socket, server.handle_request)
 
-        await loop.create_future()  # run forever
+        await asyncio.wait_for(irc_task, timeout=None)  # run forever
     except OSError as exc:
         log.critical(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
         raise SystemExit(-2) from exc
