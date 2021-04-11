@@ -57,6 +57,7 @@ from typing import (
 )
 
 import prometheus_client  # type: ignore  # prometheus/client_python #491
+from prometheus_client import Counter, Gauge
 
 import structlog
 
@@ -785,13 +786,15 @@ class IRCServer:
         self.client_timeout = 120
 
         # set up a few Prometheus metrics
+        registry = prometheus_client.CollectorRegistry()
         self.metrics = {
-            "clients": prometheus_client.Gauge("ircstream_clients", "Number of IRC clients"),
-            "channels": prometheus_client.Gauge("ircstream_channels", "Number of IRC channels"),
-            "messages": prometheus_client.Counter("ircstream_messages", "Count of RC messages broadcasted"),
-            "errors": prometheus_client.Counter("ircstream_errors", "Count of errors and exceptions", ["type"]),
+            "clients": Gauge("ircstream_clients", "Number of IRC clients", registry=registry),
+            "channels": Gauge("ircstream_channels", "Number of IRC channels", registry=registry),
+            "messages": Counter("ircstream_messages", "Count of RC messages broadcasted", registry=registry),
+            "errors": Counter("ircstream_errors", "Count of errors and exceptions", ["type"], registry=registry),
         }
         self.metrics["channels"].set_function(lambda: len(self._channels))
+        self.metrics_registry = registry
 
         self.address = config.get("listen_address", fallback="::")
         self.port = config.getint("listen_port", fallback=6667)
@@ -901,10 +904,14 @@ class PrometheusServer(DualstackServerMixIn, http.server.ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, config: configparser.SectionProxy) -> None:
+    def __init__(
+        self,
+        config: configparser.SectionProxy,
+        registry: prometheus_client.CollectorRegistry = prometheus_client.REGISTRY,
+    ) -> None:
         listen_address = config.get("listen_address", fallback="::")
         listen_port = config.getint("listen_port", fallback=9200)
-        super().__init__((listen_address, listen_port), prometheus_client.MetricsHandler)
+        super().__init__((listen_address, listen_port), prometheus_client.MetricsHandler.factory(registry))
         self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
         self.log.info("Listening for Prometheus HTTP", listen_address=self.address, listen_port=self.port)
 
@@ -979,7 +986,7 @@ async def start_servers(config: configparser.ConfigParser) -> None:
             log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
         if "prometheus" in config:
-            servers.append(PrometheusServer(config["prometheus"]))
+            servers.append(PrometheusServer(config["prometheus"], ircserver.metrics_registry))
 
         for server in servers:
             server.socket.setblocking(False)

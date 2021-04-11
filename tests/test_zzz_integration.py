@@ -16,8 +16,6 @@ import irc.connection  # type: ignore
 
 import ircstream
 
-import prometheus_client  # type: ignore
-
 import pytest
 
 
@@ -66,9 +64,6 @@ class IRCMessageCounter(irc.client.SimpleIRCClient):  # type: ignore
 @pytest.fixture(name="main")
 def fixture_main(tmp_path: pathlib.Path) -> Generator[threading.Thread, None, None]:
     """Fixture for ircstream.main, running it in a thread."""
-    # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
-    prometheus_client.REGISTRY.__init__()
-
     # test a semi-stock config, with default ports etc.
     tmp_config = tmp_path / "ircstream-integration.conf"
     tmp_config.write_text(
