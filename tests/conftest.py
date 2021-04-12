@@ -89,6 +89,10 @@ async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator
     irc_task = asyncio.create_task(ircserver.serve())
     yield ircserver
     irc_task.cancel()
+    try:
+        await irc_task
+    except asyncio.CancelledError:
+        pass
 
 
 @pytest.fixture(name="ircserver_short_timeout")
