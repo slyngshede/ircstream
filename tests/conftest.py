@@ -13,8 +13,6 @@ from typing import (
 
 import ircstream
 
-import prometheus_client  # type: ignore
-
 import pytest
 
 import structlog
@@ -80,9 +78,6 @@ async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator
     This spawns a task to run the server. It yields the IRCServer instance,
     *not* the task, however.
     """
-    # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
-    prometheus_client.REGISTRY.__init__()
-
     # set up a fake EXCEPTION command handler, that raises an exception
     # useful to test whether exceptions are actually being caught!
     def handle_raiseexc(self: ircstream.IRCClient, _: List[str]) -> None:
