@@ -284,15 +284,15 @@ class IRCClient(asyncio.Protocol):
             # if we haven't heard from the client in N seconds, disconnect
             delta = datetime.datetime.utcnow() - self.last_heard
             if delta > datetime.timedelta(seconds=timeout):
-                self.msg("ERROR", "Closing Link: (Ping timeout)")
+                await self.msg("ERROR", "Closing Link: (Ping timeout)")
                 self.terminate()
 
             # if it's N/2 seconds since the last PONG, send a PING
             if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.registered:
-                self.msg("PING", self.server.servername)
+                await self.msg("PING", self.server.servername)
                 self.ping_sent = True
 
-    def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
+    async def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
         """Prepare and sends a response to the client.
 
         This generally does the right thing, and reduces boilerplate by
@@ -332,9 +332,9 @@ class IRCClient(asyncio.Protocol):
         lines = re.split(b"\r?\n", self.buffer)
         self.buffer = lines.pop()
         for line in lines:
-            self._handle_line(line)
+            asyncio.create_task(self._handle_line(line))
 
-    def _handle_line(self, bline: bytes) -> None:
+    async def _handle_line(self, bline: bytes) -> None:
         """Handle a single line of input (i.e. a command and arguments)."""
         try:
             line = bline.decode("utf8").strip()
@@ -357,14 +357,14 @@ class IRCClient(asyncio.Protocol):
             if not handler:
                 self.log.info("No handler for command", command=msg.command, params=msg.params)
                 raise IRCError(ERR.UNKNOWNCOMMAND, [msg.command, "Unknown command"])
-            handler(msg.params)
+            await handler(msg.params)
         except IRCError as exc:
-            self.msg(exc.command, exc.params)
+            await self.msg(exc.command, exc.params)
         except UnicodeDecodeError:
             return
         except Exception as exc:  # pylint: disable=broad-except
             self.server.metrics["errors"].labels("ise").inc()
-            self.msg("ERROR", f"Internal server error ({exc})")
+            await self.msg("ERROR", f"Internal server error ({exc})")
             self.log.exception("Internal server error")
 
     def send(self, msg: str) -> None:
@@ -378,26 +378,26 @@ class IRCClient(asyncio.Protocol):
         except UnicodeEncodeError as exc:
             self.log.debug("Internal encoding error", error=exc)
 
-    def handle_cap(self, params: List[str]) -> None:  # pylint: disable=no-self-use
+    async def handle_cap(self, params: List[str]) -> None:  # pylint: disable=no-self-use
         """Stub for the CAP (capability) command.
 
         Ignore and do not send unknown command, per IRC v3.1/v3.2.
         """
 
-    def handle_pass(self, _: List[str]) -> None:
+    async def handle_pass(self, _: List[str]) -> None:
         """Stub for the PASS command."""
         if self.registered:
             raise IRCError(ERR.ALREADYREGISTERED, "You may not reregister")
 
-    def handle_who(self, params: List[str]) -> None:
+    async def handle_who(self, params: List[str]) -> None:
         """Stub for the WHO command."""
         try:
             mask = params[0]
         except IndexError:
             mask = "*"
-        self.msg(RPL.ENDOFWHO, [mask, "End of /WHO list."])
+        await self.msg(RPL.ENDOFWHO, [mask, "End of /WHO list."])
 
-    def handle_mode(self, params: List[str]) -> None:
+    async def handle_mode(self, params: List[str]) -> None:
         """Handle the MODE command, for both channel and user modes."""
         try:
             target = params[0]
@@ -413,9 +413,9 @@ class IRCClient(asyncio.Protocol):
         if target.startswith("#"):
             # channel modes
             if modestring is None:
-                self.msg(RPL.CHANNELMODEIS, [target, "+mts"])
+                await self.msg(RPL.CHANNELMODEIS, [target, "+mts"])
             elif modestring == "b":
-                self.msg(RPL.ENDOFBANLIST, [target, "End of channel ban list"])
+                await self.msg(RPL.ENDOFBANLIST, [target, "End of channel ban list"])
             else:
                 raise IRCError(ERR.CHANOPRIVSNEEDED, [target, "You're not a channel operator"])
         else:
@@ -425,13 +425,13 @@ class IRCClient(asyncio.Protocol):
                 # but common clients send a MODE at startup, making this noisy
                 pass
             elif target == self.nick:
-                self.msg(RPL.UMODEIS, "+i")
+                await self.msg(RPL.UMODEIS, "+i")
             elif target == self.server.botname:
                 raise IRCError(ERR.USERSDONTMATCH, "Can't change mode for other users")
             else:
                 raise IRCError(ERR.NOSUCHNICK, [target, "No such nick/channel"])
 
-    def handle_whois(self, params: List[str]) -> None:
+    async def handle_whois(self, params: List[str]) -> None:
         """Handle the WHOIS command."""
         if len(params) == 2:
             nicklist = params[1]
@@ -443,38 +443,38 @@ class IRCClient(asyncio.Protocol):
         # ignore queries for multiple users (as some networks do)
         nickmask = nicklist.split(",")[0]
 
-        def whois_reply(nick: str, user: str, host: str, realname: str, signon: datetime.datetime) -> None:
+        async def whois_reply(nick: str, user: str, host: str, realname: str, signon: datetime.datetime) -> None:
             # "<host> CANNOT start with a colon as this would get parsed as a
             # trailing parameter – IPv6 addresses such as "::1" are prefixed
             # with a zero to ensure this."
             if host.startswith(":"):
                 host = "0" + host
-            self.msg(RPL.WHOISUSER, [nick, user, host, "*", realname])
-            self.msg(RPL.WHOISSERVER, [nick, self.server.servername, "IRCStream"])
-            self.msg(RPL.WHOISIDLE, [nick, "0", str(int(signon.timestamp())), "seconds idle, signon time"])
+            await self.msg(RPL.WHOISUSER, [nick, user, host, "*", realname])
+            await self.msg(RPL.WHOISSERVER, [nick, self.server.servername, "IRCStream"])
+            await self.msg(RPL.WHOISIDLE, [nick, "0", str(int(signon.timestamp())), "seconds idle, signon time"])
 
         if nickmask == self.nick:
-            whois_reply(self.nick, self.user, self.host, self.realname, self.signon)
+            await whois_reply(self.nick, self.user, self.host, self.realname, self.signon)
         elif nickmask == self.server.botname:
             nick = user = realname = self.server.botname
-            whois_reply(nick, user, self.server.servername, realname, self.server.boot_time)
+            await whois_reply(nick, user, self.server.servername, realname, self.server.boot_time)
         else:
             raise IRCError(ERR.NOSUCHNICK, [nickmask, "No such nick/channel"])
 
         # nicklist and not nickmask, on purpose
-        self.msg(RPL.ENDOFWHOIS, [nicklist, "End of /WHOIS list"])
+        await self.msg(RPL.ENDOFWHOIS, [nicklist, "End of /WHOIS list"])
 
-    def handle_whowas(self, params: List[str]) -> None:
+    async def handle_whowas(self, params: List[str]) -> None:
         """Handle the WHOWAS command."""
         try:
             nick = params[0]
         except IndexError:
             raise IRCError(ERR.NONICKNAMEGIVEN, "No nickname given") from None
 
-        self.msg(ERR.WASNOSUCHNICK, [nick, "There was no such nickname"])
-        self.msg(RPL.ENDOFWHOWAS, [nick, "End of WHOWAS"])
+        await self.msg(ERR.WASNOSUCHNICK, [nick, "There was no such nickname"])
+        await self.msg(RPL.ENDOFWHOWAS, [nick, "End of WHOWAS"])
 
-    def handle_nick(self, params: List[str]) -> None:
+    async def handle_nick(self, params: List[str]) -> None:
         """Handle the initial setting of the user's nickname and nick changes."""
         try:
             nick = params[0]
@@ -488,13 +488,13 @@ class IRCClient(asyncio.Protocol):
         if not self.registered:
             self.nick = nick
             if self.user:
-                self.end_registration()
+                await self.end_registration()
         else:
             # existing registration, but changing nicks
-            self.msg("NICK", [nick])
+            await self.msg("NICK", [nick])
             self.nick = nick
 
-    def handle_user(self, params: List[str]) -> None:
+    async def handle_user(self, params: List[str]) -> None:
         """Handle the USER command which identifies the user to the server."""
         try:
             user, _, _, realname = params[:4]
@@ -509,9 +509,9 @@ class IRCClient(asyncio.Protocol):
 
         # we have both USER and NICK, end registration
         if self.nick:
-            self.end_registration()
+            await self.end_registration()
 
-    def end_registration(self) -> None:
+    async def end_registration(self) -> None:
         """End the registration process.
 
         Called after both USER and NICK have been given. Responds with a whole
@@ -519,11 +519,11 @@ class IRCClient(asyncio.Protocol):
         """
         cmodes = ("b", "k", "l", "mtns")  # channel modes, types A-D
 
-        self.msg(RPL.WELCOME, "Welcome to IRCStream")
-        self.msg(RPL.YOURHOST, f"Your host is {self.server.servername}, running version {__version__}")
-        self.msg(RPL.CREATED, f"This server was created {self.server.boot_time:%c}")
-        self.msg(RPL.MYINFO, f"{self.server.servername} {__version__} i {''.join(cmodes)}")
-        self.msg(
+        await self.msg(RPL.WELCOME, "Welcome to IRCStream")
+        await self.msg(RPL.YOURHOST, f"Your host is {self.server.servername}, running version {__version__}")
+        await self.msg(RPL.CREATED, f"This server was created {self.server.boot_time:%c}")
+        await self.msg(RPL.MYINFO, f"{self.server.servername} {__version__} i {''.join(cmodes)}")
+        await self.msg(
             RPL.ISUPPORT,
             [
                 f"NETWORK={self.server.network}",
@@ -538,20 +538,20 @@ class IRCClient(asyncio.Protocol):
                 "are available on this server",
             ],
         )
-        self.msg(RPL.UMODEIS, "+i")
-        self.handle_motd([])
+        await self.msg(RPL.UMODEIS, "+i")
+        await self.handle_motd([])
 
         self.log = self.log.bind(client_id=self.internal_ident)
         self.log.info("Client registered")
 
-    def handle_motd(self, _: List[str]) -> None:
+    async def handle_motd(self, _: List[str]) -> None:
         """Handle the MOTD command."""
-        self.msg(RPL.MOTDSTART, "- Message of the day -")
+        await self.msg(RPL.MOTDSTART, "- Message of the day -")
         for line in self.server.welcome_msg.strip().split("\n"):
-            self.msg(RPL.MOTD, "- " + line)
-        self.msg(RPL.ENDOFMOTD, "End of /MOTD command.")
+            await self.msg(RPL.MOTD, "- " + line)
+        await self.msg(RPL.ENDOFMOTD, "End of /MOTD command.")
 
-    def handle_ping(self, params: List[str]) -> None:
+    async def handle_ping(self, params: List[str]) -> None:
         """Handle client PING requests to keep the connection alive."""
         try:
             origin = params[0]
@@ -562,14 +562,14 @@ class IRCClient(asyncio.Protocol):
             destination = params[1]
         except IndexError:
             destination = self.server.servername
-        self.msg("PONG", [destination, origin])
+        await self.msg("PONG", [destination, origin])
 
-    def handle_pong(self, _: List[str]) -> None:
+    async def handle_pong(self, _: List[str]) -> None:
         """Handle client PONG responses to keep the connection alive."""
         self.last_heard = datetime.datetime.utcnow()
         self.ping_sent = False
 
-    def handle_join(self, params: List[str]) -> None:
+    async def handle_join(self, params: List[str]) -> None:
         """Handle the JOIN command."""
         try:
             channels = params[0]  # ignore param 1, i.e. channel keys
@@ -581,25 +581,25 @@ class IRCClient(asyncio.Protocol):
 
             # is this a valid channel name?
             if not re.fullmatch(r"#([\w\d_\.-])+", channel) or len(channel) > 50:
-                self.msg(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
+                await self.msg(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
                 continue
 
             # check if channel already exists (clients cannot create channels)
             if channel not in self.server.channels:
-                self.msg(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
+                await self.msg(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
                 continue
 
             self.server.subscribe(channel, self)  # add to the server's (global) list
             self.channels.add(channel)  # add channel to client's own channel list
 
             # send join message
-            self.msg("JOIN", channel)
-            self.handle_topic([channel])
-            self.handle_names([channel])
+            await self.msg("JOIN", channel)
+            await self.handle_topic([channel])
+            await self.handle_names([channel])
 
             self.log.info("User subscribed to feed", channel=channel)
 
-    def handle_topic(self, params: List[str]) -> None:
+    async def handle_topic(self, params: List[str]) -> None:
         """Handle the TOPIC command.
 
         Shows a hardcoded topic message when asked for one, and always deny
@@ -617,11 +617,11 @@ class IRCClient(asyncio.Protocol):
         if len(params) > 1:
             raise IRCError(ERR.CHANOPRIVSNEEDED, [channel, "You're not a channel operator"])
 
-        self.msg(RPL.TOPIC, [channel, self.server.topic_tmpl.format(channel=channel)])
+        await self.msg(RPL.TOPIC, [channel, self.server.topic_tmpl.format(channel=channel)])
         botid = self.server.botname + "!" + self.server.botname + "@" + self.server.servername
-        self.msg(RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))])
+        await self.msg(RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))])
 
-    def handle_names(self, params: List[str]) -> None:
+    async def handle_names(self, params: List[str]) -> None:
         """Handle the NAMES command.
 
         Every channel has the "bot" connected, plus, optionally, the connecting
@@ -630,7 +630,7 @@ class IRCClient(asyncio.Protocol):
         try:
             channels = params[0]
         except IndexError:
-            self.msg(RPL.ENDOFNAMES, ["*", "End of /NAMES list"])
+            await self.msg(RPL.ENDOFNAMES, ["*", "End of /NAMES list"])
             return
 
         # ignore queries for multiple channels (as many networks do)
@@ -642,10 +642,10 @@ class IRCClient(asyncio.Protocol):
         else:
             nicklist = ("@" + self.server.botname,)
 
-        self.msg(RPL.NAMREPLY, ["=", channel, " ".join(nicklist)])
-        self.msg(RPL.ENDOFNAMES, [channel, "End of /NAMES list"])
+        await self.msg(RPL.NAMREPLY, ["=", channel, " ".join(nicklist)])
+        await self.msg(RPL.ENDOFNAMES, [channel, "End of /NAMES list"])
 
-    def handle_privmsg(self, params: List[str]) -> None:
+    async def handle_privmsg(self, params: List[str]) -> None:
         """Handle the PRIVMSG command, sending a message to a user or channel.
 
         Almost no-op in our case, as we only allow the bot to message users.
@@ -658,15 +658,15 @@ class IRCClient(asyncio.Protocol):
         for target in targets.split(","):
             target = target.strip()
             if target.startswith("#"):
-                self.msg(ERR.CANNOTSENDTOCHAN, [target, "Cannot send to channel"])
+                await self.msg(ERR.CANNOTSENDTOCHAN, [target, "Cannot send to channel"])
             elif target == self.server.botname:
                 pass  # bot ignores all messages
             elif target == self.nick:
-                self.msg("PRIVMSG", [target, msg])  # echo back
+                await self.msg("PRIVMSG", [target, msg])  # echo back
             else:
-                self.msg(ERR.NOSUCHNICK, [target, "No such nick/channel"])
+                await self.msg(ERR.NOSUCHNICK, [target, "No such nick/channel"])
 
-    def handle_notice(self, params: List[str]) -> None:
+    async def handle_notice(self, params: List[str]) -> None:
         """Handle the NOTICE command, sending a notice to a user or channel.
 
         We only allow self-notices, and per RFC, do not return any errors.
@@ -677,9 +677,9 @@ class IRCClient(asyncio.Protocol):
             raise IRCError(ERR.NEEDMOREPARAMS, ["NOTICE", "Not enough parameters"]) from None
 
         if self.nick in targets.split(","):
-            self.msg("NOTICE", [self.nick, msg])  # echo back
+            await self.msg("NOTICE", [self.nick, msg])  # echo back
 
-    def handle_part(self, params: List[str]) -> None:
+    async def handle_part(self, params: List[str]) -> None:
         """Handle the PART command."""
         try:
             channels = params[0]
@@ -691,13 +691,13 @@ class IRCClient(asyncio.Protocol):
             if channel in self.channels:
                 self.channels.remove(channel)  # remove from client's own channel list
                 self.server.unsubscribe(channel, self)  # unsubscribe from the server's (global) list
-                self.msg("PART", channel)
+                await self.msg("PART", channel)
                 self.log.info("User unsubscribed from feed", channel=channel)
             else:
                 # don't raise IRCError because this can be one of many channels
-                self.msg(ERR.NOTONCHANNEL, [channel, "You're not on that channel"])
+                await self.msg(ERR.NOTONCHANNEL, [channel, "You're not on that channel"])
 
-    def handle_list(self, params: List[str]) -> None:
+    async def handle_list(self, params: List[str]) -> None:
         """Handle the LIST command."""
         channels: Iterable[str]
         try:
@@ -708,16 +708,16 @@ class IRCClient(asyncio.Protocol):
 
         for channel in sorted(channels):
             usercount = "2" if channel in self.channels else "1"  # bot, or us and the bot
-            self.msg(RPL.LIST, [channel, usercount, self.server.topic_tmpl.format(channel=channel)])
-        self.msg(RPL.LISTEND, "End of /LIST")
+            await self.msg(RPL.LIST, [channel, usercount, self.server.topic_tmpl.format(channel=channel)])
+        await self.msg(RPL.LISTEND, "End of /LIST")
 
-    def handle_quit(self, params: List[str]) -> None:
+    async def handle_quit(self, params: List[str]) -> None:
         """Handle the client breaking off the connection with a QUIT command."""
         try:
             reason = params[0]
         except IndexError:
             reason = "No reason"
-        self.msg("ERROR", f"Closing Link: (Quit: {reason})")
+        await self.msg("ERROR", f"Closing Link: (Quit: {reason})")
         self.terminate()
 
     @property

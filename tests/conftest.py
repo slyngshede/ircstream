@@ -80,7 +80,7 @@ async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator
     """
     # set up a fake EXCEPTION command handler, that raises an exception
     # useful to test whether exceptions are actually being caught!
-    def handle_raiseexc(self: ircstream.IRCClient, _: List[str]) -> None:
+    async def handle_raiseexc(self: ircstream.IRCClient, _: List[str]) -> None:
         raise Exception("Purposefully triggered exception")
 
     ircstream.IRCClient.handle_raiseexc = handle_raiseexc  # type: ignore
