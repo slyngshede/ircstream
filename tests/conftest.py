@@ -77,8 +77,8 @@ def fixture_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator[ircstream.IRCServer, None]:
     """Fixture for an instance of an IRCServer.
 
-    This spawns a thread to run the server. It yields the IRCServer instance,
-    *not* the thread, however.
+    This spawns a task to run the server. It yields the IRCServer instance,
+    *not* the task, however.
     """
     # hack: cleanup prometheus_client's registry, to avoid Duplicated timeseries messages when reusing
     prometheus_client.REGISTRY.__init__()

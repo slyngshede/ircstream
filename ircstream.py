@@ -760,7 +760,7 @@ class IRCClient(asyncio.Protocol):
 
 
 class IRCServer:
-    """A socketserver TCPServer instance representing an IRC server."""
+    """A server class representing an IRC server."""
 
     log = structlog.get_logger("ircstream.irc")
 
@@ -841,7 +841,7 @@ class IRCServer:
 
 
 class RC2UDPHandler(asyncio.Protocol):
-    """A socketserver handler implementing the RC2UDP protocol, as used by MediaWiki."""
+    """A handler implementing the RC2UDP protocol, as used by MediaWiki."""
 
     log = structlog.get_logger("ircstream.rc2udp")
 
@@ -864,7 +864,7 @@ class RC2UDPHandler(asyncio.Protocol):
 
 
 class RC2UDPServer:  # pylint: disable=too-few-public-methods
-    """A socketserver implementing the RC2UDP protocol, as used by MediaWiki."""
+    """A server implementing the RC2UDP protocol, as used by MediaWiki."""
 
     log = structlog.get_logger("ircstream.rc2udp")
 

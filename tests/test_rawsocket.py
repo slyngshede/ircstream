@@ -23,7 +23,7 @@ class BareClient:
     """Bare client around socket operations to support a line-based protocol."""
 
     def __init__(self) -> None:
-        """Initialize the socket *and connect*."""
+        """Initialize the client."""
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
         self.close: Callable[[], None] = lambda: None
