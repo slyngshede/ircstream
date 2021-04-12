@@ -52,7 +52,6 @@ from typing import (
     Set,
     Tuple,
     Union,
-    cast,
 )
 
 import prometheus_client  # type: ignore  # prometheus/client_python #491
@@ -223,7 +222,7 @@ class IRCError(Exception):
         self.params = params
 
 
-class IRCClient(asyncio.Protocol):
+class IRCClient:
     """IRC client connect and command handling.
 
     Client connection is handled by the ``handle`` method which sets up a
@@ -233,26 +232,24 @@ class IRCClient(asyncio.Protocol):
 
     log = structlog.get_logger("ircstream.client")
 
-    def __init__(self, server: IRCServer) -> None:
+    def __init__(self, server: IRCServer, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self.server = server
+        self.reader = reader
+        self.writer = writer
+
         self.signon = datetime.datetime.utcnow()
         self.last_heard = self.signon
         self.ping_sent = False
         self.buffer = b""
-        self.eof = False
         self.user, self.realname, self.nick = "", "", ""
         self.channels: Set[str] = set()
-        self.transport: asyncio.Transport = None  # type: ignore
         self.host: str = ""
         self.port: int = 0
         self._periodic_ping_task: Optional[asyncio.Task[Any]] = None
 
-    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+    async def connect(self) -> None:
         """Handle a new connection from a client."""
-        transport = cast(asyncio.Transport, transport)  # for mypy
-        self.transport = transport
-
-        client_address = transport.get_extra_info("peername")
+        client_address = self.writer.get_extra_info("peername")
         self.host, self.port = client_address[:2]
         # trim IPv4 mapped prefix
         if self.host.startswith("::ffff:"):
@@ -263,29 +260,28 @@ class IRCClient(asyncio.Protocol):
         self.server.metrics["clients"].inc()
         self._periodic_ping_task = asyncio.create_task(self._periodic_ping())
 
-    def terminate(self) -> None:
+        await self._handle_forever()
+
+    async def terminate(self) -> None:
         """Terminates the connection."""
-        # set before the call to write_eof() so that if it fails mid-stream, we avoid subsequent write()s
-        self.eof = True
         try:
-            self.transport.write_eof()
+            self.writer.write_eof()
+            await self.writer.drain()
         except OSError as exc:
             if exc.errno != errno.ENOTCONN:
                 self.log.debug("Unknown error in terminate", errno=exc.errno)
-        self.transport.close()
+        self.writer.close()
+        await self.writer.wait_closed()
 
     async def _periodic_ping(self) -> None:
         while True:
             await asyncio.sleep(self.server.client_timeout / 2)
-            if self.transport.is_closing():
-                break
-
             timeout = self.server.client_timeout
             # if we haven't heard from the client in N seconds, disconnect
             delta = datetime.datetime.utcnow() - self.last_heard
             if delta > datetime.timedelta(seconds=timeout):
                 await self.msg("ERROR", "Closing Link: (Ping timeout)")
-                self.terminate()
+                await self.terminate()
 
             # if it's N/2 seconds since the last PONG, send a PING
             if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.registered:
@@ -318,21 +314,29 @@ class IRCClient(asyncio.Protocol):
                 params.insert(0, "*")
 
         msg = IRCMessage(str(command), params, source)
-        self.send(str(msg))
+        await self.send(str(msg))
 
-    def data_received(self, data: bytes) -> None:
+    async def _handle_forever(self) -> None:
         """Receive data from a client.
 
-        Splits into multiple lines, and call _handle_line() for each.
+        Do some basic checking, then call _handle_line()
         """
-        if self.transport.is_closing():
-            return
+        while True:
+            try:
+                line = await self.reader.readline()
+            except ValueError:
+                self.log.debug("Line exceeded max length, ignoring")
+                continue
+            except OSError:
+                break
 
-        self.buffer += data
-        lines = re.split(b"\r?\n", self.buffer)
-        self.buffer = lines.pop()
-        for line in lines:
-            asyncio.create_task(self._handle_line(line))
+            if self.reader.at_eof():
+                break
+
+            line = line.rstrip(b"\n").rstrip(b"\r")
+            line = line[:510]  # 512 including CRLF; RFC 2813, section 3.3
+            await self._handle_line(line)
+        await self.finish()
 
     async def _handle_line(self, bline: bytes) -> None:
         """Handle a single line of input (i.e. a command and arguments)."""
@@ -367,16 +371,20 @@ class IRCClient(asyncio.Protocol):
             await self.msg("ERROR", f"Internal server error ({exc})")
             self.log.exception("Internal server error")
 
-    def send(self, msg: str) -> None:
+    async def send(self, msg: str) -> None:
         """Send a message to a connected client."""
-        if self.eof:
-            return
         msg = msg[:510]  # 512 including CRLF; RFC 2813, section 3.3
+        if self.writer.is_closing():
+            self.log.debug("Data not sent (conn closed)", message=msg)
+            return
         self.log.debug("Data sent", message=msg)
         try:
-            self.transport.write(msg.encode("utf8") + b"\r\n")
+            self.writer.write(msg.encode("utf8") + b"\r\n")
+            await self.writer.drain()
         except UnicodeEncodeError as exc:
             self.log.debug("Internal encoding error", error=exc)
+        except (ConnectionResetError, BrokenPipeError):
+            pass
 
     async def handle_cap(self, params: List[str]) -> None:  # pylint: disable=no-self-use
         """Stub for the CAP (capability) command.
@@ -718,7 +726,7 @@ class IRCClient(asyncio.Protocol):
         except IndexError:
             reason = "No reason"
         await self.msg("ERROR", f"Closing Link: (Quit: {reason})")
-        self.terminate()
+        await self.terminate()
 
     @property
     def registered(self) -> bool:
@@ -740,7 +748,7 @@ class IRCClient(asyncio.Protocol):
             return f"anonymous/{host_port}"
         return f"{self.nick}!{self.user}/{host_port}"
 
-    def connection_lost(self, _: Optional[Exception]) -> None:
+    async def finish(self) -> None:
         """Finish the client connection.
 
         Do some cleanup to ensure that the client doesn't linger around in any
@@ -750,7 +758,12 @@ class IRCClient(asyncio.Protocol):
         for channel in self.channels:
             self.server.unsubscribe(channel, self)
         if self._periodic_ping_task:
-            self._periodic_ping_task.cancel()
+            try:
+                self._periodic_ping_task.cancel()
+                await self._periodic_ping_task  # give a chance to the task to cancel
+            except asyncio.CancelledError:
+                pass
+            self._periodic_ping_task = None
         self.server.metrics["clients"].dec()
         self.log.info("Client disconnected")
 
@@ -799,8 +812,8 @@ class IRCServer:
             sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind((self.address, self.port))
 
-        loop = asyncio.get_running_loop()
-        server = await loop.create_server(lambda: IRCClient(self), sock=sock)
+        # specs say length is 512 (including CRLF) - set limit to handle more, as implementations vary
+        server = await asyncio.start_server(lambda r, w: IRCClient(self, r, w).connect(), sock=sock, limit=512 * 2)
 
         if server.sockets:
             local_addr = server.sockets[0].getsockname()[:2]
@@ -832,7 +845,7 @@ class IRCServer:
         clients = self._channels.setdefault(target, set())
         for client in clients:
             try:
-                client.send(message)
+                await client.send(message)
             except Exception:  # pylint: disable=broad-except
                 self.metrics["errors"].labels("broadcast").inc()
                 self.log.debug("Unable to broadcast", exc_info=True)

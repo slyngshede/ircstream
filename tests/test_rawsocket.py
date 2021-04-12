@@ -108,6 +108,10 @@ async def test_erroneous(clientsock: BareClient) -> None:
     data = await clientsock.readlines()
     assert data == []
 
+    clientsock.write(b":" + b"X" * (512 * 4) + b"\n")
+    data = await clientsock.readlines()
+    assert data == []
+
 
 async def test_unicodeerror(ircserver: ircstream.IRCServer, clientsock: BareClient) -> None:
     """Test for UnicodeError handling in both directions."""
