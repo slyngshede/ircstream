@@ -8,7 +8,7 @@ number of legacy clients in the wild relying on this interface.
 
 from __future__ import annotations
 
-__version__ = "0.9.1"
+__version__ = "0.10.0"
 __author__ = "Faidon Liambotis"
 __copyright__ = """
 Copyright © Faidon Liambotis
@@ -1013,7 +1013,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     # only set e.g. INFO or DEBUG for our own loggers
     structlog.get_logger("ircstream").setLevel(options.log_level)
     log = structlog.get_logger("ircstream.main")
-    log.info("Starting IRCStream", config_file=options.config_file)
+    log.info("Starting IRCStream", config_file=options.config_file, version=__version__)
 
     config = configparser.ConfigParser(strict=True)
     try:

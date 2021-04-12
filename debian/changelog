@@ -1,3 +1,10 @@
+ircstream (0.10.0) unstable; urgency=medium
+
+  * Port to asyncio.
+  * Various miscellaneous fixes.
+
+ -- Faidon Liambotis <paravoid@debian.org>  Mon, 12 Apr 2021 18:16:51 +0300
+
 ircstream (0.9.1) unstable; urgency=medium
 
   * Various miscellaneous fixes.
