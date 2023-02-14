@@ -1017,7 +1017,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     config = configparser.ConfigParser(strict=True)
     try:
-        with open(options.config_file) as config_fh:
+        with open(options.config_file, encoding="utf-8") as config_fh:
             config.read_file(config_fh)
     except OSError as exc:
         log.critical(f"Cannot open configuration file: {exc.strerror}", errno=errno.errorcode[exc.errno])

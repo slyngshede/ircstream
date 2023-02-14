@@ -6,7 +6,7 @@ import setuptools  # type: ignore
 
 def get_long_description() -> str:
     """Fetch the long description from README.md."""
-    with open("README.md", "r") as readme:
+    with open("README.md", encoding="utf-8", mode="r") as readme:
         return readme.read()
 
 
@@ -15,7 +15,7 @@ def get_version() -> str:
 
     To be replaced by importlib.metadata when we move to Python 3.8 (PEP 566).
     """
-    with open("ircstream.py", "r") as code:
+    with open("ircstream.py", encoding="utf-8", mode="r") as code:
         for line in code.readlines():
             if line.startswith("__version__"):
                 delim = '"' if '"' in line else "'"
