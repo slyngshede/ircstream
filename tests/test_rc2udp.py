@@ -12,7 +12,7 @@ from typing import (
 
 import ircstream
 
-import prometheus_client  # type: ignore
+import prometheus_client
 
 import pytest
 

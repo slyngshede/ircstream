@@ -54,7 +54,7 @@ from typing import (
     Union,
 )
 
-import prometheus_client  # type: ignore  # prometheus/client_python #491
+import prometheus_client
 from prometheus_client import Counter, Gauge
 
 import structlog
@@ -790,7 +790,7 @@ class IRCServer:
 
         # set up a few Prometheus metrics
         registry = prometheus_client.CollectorRegistry()
-        self.metrics = {
+        self.metrics: Dict[str, Any[Gauge, Counter]] = {
             "clients": Gauge("ircstream_clients", "Number of IRC clients", registry=registry),
             "channels": Gauge("ircstream_channels", "Number of IRC channels", registry=registry),
             "messages": Counter("ircstream_messages", "Count of RC messages broadcasted", registry=registry),
