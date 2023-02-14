@@ -28,7 +28,8 @@ def pytest_generate_tests(metafunc) -> None:  # type: ignore
     for fixture, filename in fixtures.items():
         filepath = TEST_DATA_DIR / Path(filename)
         if fixture in metafunc.fixturenames:
-            yamldata = yaml.safe_load(open(filepath, encoding="utf-8").read())
+            with filepath.open(encoding="utf-8") as yamlfile:
+                yamldata = yaml.safe_load(yamlfile.read())
             metafunc.parametrize(fixture, yamldata["tests"])
 
 

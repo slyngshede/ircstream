@@ -27,7 +27,8 @@ def test_numeric() -> None:
     definitions are valid, and not that we have the complete list.
     """
     # build a name->(numeric, numeric, ...) dictionary, e.g. RPL_WELCOME -> (001,)
-    yamldata = yaml.load(open(TEST_NUMERICS_YAML, encoding="utf-8").read(), Loader=SafeLoader)
+    with TEST_NUMERICS_YAML.open(encoding="utf-8") as yamlfile:
+        yamldata = yaml.load(yamlfile.read(), Loader=SafeLoader)
     numerics: Dict[str, Set[str]] = {}
     for value in yamldata["values"]:
         # numerics are not necessarily unique and vary by implementation.
