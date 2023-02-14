@@ -386,7 +386,7 @@ class IRCClient:
         except (ConnectionResetError, BrokenPipeError):
             pass
 
-    async def handle_cap(self, params: List[str]) -> None:  # pylint: disable=no-self-use
+    async def handle_cap(self, params: List[str]) -> None:
         """Stub for the CAP (capability) command.
 
         Ignore and do not send unknown command, per IRC v3.1/v3.2.
