@@ -19,7 +19,8 @@ def test_parse_args_help(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exc:
         ircstream.parse_args(["--help"])
 
-    assert exc.value.code == 0
+    exit_status = int(exc.value.code) if exc.value.code is not None else 0
+    assert exit_status == 0
     out, _ = capsys.readouterr()
     assert "usage: " in out
 
@@ -108,7 +109,8 @@ def test_main(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, caplog: p
     with pytest.raises(SystemExit) as exc:
         ircstream.main((args))
 
-    assert exc.value.code < 0
+    exit_status = int(exc.value.code) if exc.value.code is not None else 0
+    assert exit_status < 0
     assert "Address already in use" in caplog.records[-1].message
 
 
@@ -120,7 +122,8 @@ def test_main_config_nonexistent(caplog: pytest.LogCaptureFixture) -> None:
     with pytest.raises(SystemExit) as exc:
         ircstream.main((args))
 
-    assert exc.value.code < 0
+    exit_status = int(exc.value.code) if exc.value.code is not None else 0
+    assert exit_status < 0
     assert "No such file or directory" in caplog.records[-1].message
 
 
@@ -139,7 +142,8 @@ def test_main_config_invalid(
     with pytest.raises(SystemExit) as exc:
         ircstream.main((args))
 
-    assert exc.value.code < 0
+    exit_status = int(exc.value.code) if exc.value.code is not None else 0
+    assert exit_status < 0
     assert "Invalid configuration" in caplog.records[-1].message
 
 
