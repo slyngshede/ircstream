@@ -913,7 +913,8 @@ class PrometheusServer(http.server.ThreadingHTTPServer):
             self.address_family = socket.AF_INET6
         listen_port = config.getint("listen_port", fallback=9200)
         super().__init__((listen_address, listen_port), prometheus_client.MetricsHandler.factory(registry))
-        self.address, self.port = self.server_address[:2]  # update address/port based on what bind() returned
+        # update address/port based on what bind() returned
+        self.address, self.port = str(self.server_address[0]), self.server_address[1]
         self.log.info("Listening for Prometheus HTTP", listen_address=self.address, listen_port=self.port)
 
     def server_bind(self) -> None:
