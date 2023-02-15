@@ -25,7 +25,7 @@ def fixture_configure_structlog() -> None:
     def dummy_processor(
         logger: logging.Logger, name: str, event_dict: structlog.types.EventDict
     ) -> structlog.types.EventDict:
-        raise structlog.exceptions.DropEvent
+        raise structlog.DropEvent
 
     structlog.configure(processors=[dummy_processor])
 
