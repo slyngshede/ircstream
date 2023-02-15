@@ -7,13 +7,14 @@ from typing import Any, Mapping
 
 from ircstream import IRCMessage
 
+import pytest
+
 import yaml
 
 TEST_DATA_DIR = Path("tests") / Path("data")
 
 
-# type ignore until https://github.com/pytest-dev/pytest/pull/8194/commits/bd76042344b3c3318dddf991c08d49bbce2251bb
-def pytest_generate_tests(metafunc) -> None:  # type: ignore
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate test data fixtures from irc-parser-tests YAML files.
 
     Load the YAML files from the irc-parser-tests project, and create one
