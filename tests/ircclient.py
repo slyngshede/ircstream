@@ -11,6 +11,7 @@ from typing import (
     Union,
 )
 
+import irc.client  # type: ignore
 import irc.client_aio  # type: ignore
 import irc.connection  # type: ignore
 
