@@ -956,6 +956,7 @@ def configure_logging(log_format: str = "plain") -> None:
     if log_format == "plain":
         processors += [structlog.dev.ConsoleRenderer(colors=False)]
     elif log_format == "console":
+        # >= 20.2.0 has this in the default config
         processors = [structlog.stdlib.add_log_level] + structlog.get_config()["processors"]
     elif log_format == "json":
         processors += [
@@ -969,7 +970,6 @@ def configure_logging(log_format: str = "plain") -> None:
 
     structlog.configure(
         processors=processors,
-        context_class=structlog.threadlocal.wrap_dict(dict),
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
     )
