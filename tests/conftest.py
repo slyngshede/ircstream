@@ -78,10 +78,11 @@ async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator
     This spawns a task to run the server. It yields the IRCServer instance,
     *not* the task, however.
     """
+
     # set up a fake EXCEPTION command handler, that raises an exception
     # useful to test whether exceptions are actually being caught!
     async def handle_raiseexc(self: ircstream.IRCClient, _: List[str]) -> None:
-        raise Exception("Purposefully triggered exception")
+        raise NotImplementedError("Purposefully triggered exception")
 
     ircstream.IRCClient.handle_raiseexc = handle_raiseexc  # type: ignore
 
