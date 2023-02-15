@@ -9,11 +9,6 @@ from ircstream import ERR, RPL
 
 import yaml
 
-try:
-    from yaml import CSafeLoader as SafeLoader
-except ImportError:
-    from yaml import SafeLoader  # type: ignore
-
 TEST_NUMERICS_YAML = Path("tests") / Path("data") / "numerics.yaml"
 
 
@@ -28,7 +23,7 @@ def test_numeric() -> None:
     """
     # build a name->(numeric, numeric, ...) dictionary, e.g. RPL_WELCOME -> (001,)
     with TEST_NUMERICS_YAML.open(encoding="utf-8") as yamlfile:
-        yamldata = yaml.load(yamlfile.read(), Loader=SafeLoader)
+        yamldata = yaml.load(yamlfile.read(), Loader=yaml.SafeLoader)
     numerics: Dict[str, Set[str]] = {}
     for value in yamldata["values"]:
         # numerics are not necessarily unique and vary by implementation.
