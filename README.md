@@ -41,7 +41,7 @@ architecture to EventStreams' backend](https://phabricator.wikimedia.org/T234234
 
 # Requirements
 
-Python 3.7+, plus the following modules from PyPI or your distribution:
+Python 3.9+, plus the following modules from PyPI or your distribution:
 
 * `prometheus_client`
 * `structlog`

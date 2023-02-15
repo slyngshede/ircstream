@@ -10,7 +10,7 @@ Build-Depends:
  python3-setuptools,
 Standards-Version: 4.6.2
 Homepage: https://github.com/paravoid/ircstream
-X-Python3-Version: >= 3.7
+X-Python3-Version: >= 3.9
 Rules-Requires-Root: no
 Testsuite: autopkgtest-pkg-pybuild
 

@@ -26,8 +26,7 @@ class IRCClientAio(irc.client_aio.AioSimpleIRCClient):  # type: ignore
 
     def __init__(self) -> None:
         super().__init__()
-        # remove pylint ignore when we move post Python 3.9+
-        self.events: asyncio.Queue[irc.client.Event] = asyncio.Queue()  # pylint: disable=unsubscriptable-object
+        self.events: asyncio.Queue[irc.client.Event] = asyncio.Queue()
 
     async def connect_async(self, *args: Any, **kwargs: Any) -> None:
         """Override the method as the original runs a new loop."""

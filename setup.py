@@ -42,7 +42,7 @@ setuptools.setup(
         "Intended Audience :: System Administrators",
     ],
     keywords=["irc", "mediawiki", "wikimedia"],
-    python_requires=">=3.7",
+    python_requires=">=3.9",
     # fmt: off
     install_requires=[
         "prometheus_client",
