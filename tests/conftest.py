@@ -33,7 +33,7 @@ def fixture_configure_structlog() -> None:
 @pytest.fixture(name="config", scope="module", params=["127.0.0.1", "::1"])
 def fixture_config(request: pytest.FixtureRequest) -> Generator[configparser.ConfigParser, None, None]:
     """Fixture representing an example configuration."""
-    listen_address = request.param  # type: ignore # pytest bug?
+    listen_address = request.param
     config = configparser.ConfigParser()
     config.read_string(
         f"""
