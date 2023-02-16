@@ -444,7 +444,7 @@ class IRCClient:
 
         async def whois_reply(nick: str, user: str, host: str, realname: str, signon: datetime.datetime) -> None:
             # "<host> CANNOT start with a colon as this would get parsed as a
-            # trailing parameter – IPv6 addresses such as "::1" are prefixed
+            # trailing parameter - IPv6 addresses such as "::1" are prefixed
             # with a zero to ensure this."
             if host.startswith(":"):
                 host = "0" + host
