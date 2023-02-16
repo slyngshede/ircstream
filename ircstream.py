@@ -42,11 +42,8 @@ import logging
 import re
 import socket
 import sys
-from typing import (
-    Any,
-    Iterable,
-    Sequence,
-)
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 import prometheus_client
 from prometheus_client import Counter, Gauge

@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import configparser
-from typing import (
-    AsyncGenerator,
-)
+from collections.abc import AsyncGenerator
 
 import ircstream
 

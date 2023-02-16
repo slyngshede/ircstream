@@ -5,10 +5,7 @@ from __future__ import annotations
 import asyncio
 import configparser
 import logging
-from typing import (
-    AsyncGenerator,
-    Generator,
-)
+from collections.abc import AsyncGenerator, Generator
 
 import ircstream
 

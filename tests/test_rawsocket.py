@@ -8,7 +8,8 @@ manually, using a raw socket.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, AsyncGenerator, Callable, Sequence
+from collections.abc import AsyncGenerator, Sequence
+from typing import Any, Callable
 from unittest.mock import patch
 
 import ircstream

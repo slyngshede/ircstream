@@ -9,7 +9,8 @@ import pathlib
 import socket
 import threading
 import time
-from typing import Any, Generator
+from collections.abc import Generator
+from typing import Any
 
 import irc.client  # type: ignore
 import irc.connection  # type: ignore
