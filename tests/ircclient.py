@@ -36,7 +36,6 @@ class IRCClientAio(irc.client_aio.AioSimpleIRCClient):  # type: ignore
 
         Just shoves incoming events into a simple queue.
         """
-        # print(f"{event.type}, source={event.source}, target={event.target}, arguments={event.arguments}")
         self.events.put_nowait(event)
 
     async def expect(self, typ: str, timeout: float = 2, **kwargs: str | list[str]) -> irc.client.Event | None:
