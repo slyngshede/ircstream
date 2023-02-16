@@ -14,6 +14,9 @@ exclude_lines = [
     '^if __name__ == "__main__":$',
 ]
 
+[tool.mypy]
+strict = true
+
 # linters
 [tool.black]
 line-length = 120
