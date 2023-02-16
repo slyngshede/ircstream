@@ -79,7 +79,7 @@ async def test_ping_timeout(ircserver_short_timeout: ircstream.IRCServer, client
             ping_timedout = True
             break
         else:
-            assert False  # another unexpected message
+            raise AssertionError  # another unexpected message
 
     assert ping_timedout
 
