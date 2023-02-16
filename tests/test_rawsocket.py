@@ -8,7 +8,7 @@ manually, using a raw socket.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, AsyncGenerator, Callable, Optional, Sequence
+from typing import Any, AsyncGenerator, Callable, Sequence
 from unittest.mock import patch
 
 import ircstream
@@ -24,8 +24,8 @@ class BareClient:
 
     def __init__(self) -> None:
         """Initialize the client."""
-        self.reader: Optional[asyncio.StreamReader] = None
-        self.writer: Optional[asyncio.StreamWriter] = None
+        self.reader: asyncio.StreamReader | None = None
+        self.writer: asyncio.StreamWriter | None = None
         self.close: Callable[[], None] = lambda: None
         self.write: Callable[[bytes], None] = lambda x: None
         self.readline: Any = None

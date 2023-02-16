@@ -6,8 +6,6 @@ import asyncio
 import socket
 from typing import (
     Any,
-    Optional,
-    Union,
 )
 
 import irc.client  # type: ignore
@@ -41,7 +39,7 @@ class IRCClientAio(irc.client_aio.AioSimpleIRCClient):  # type: ignore
         # print(f"{event.type}, source={event.source}, target={event.target}, arguments={event.arguments}")
         self.events.put_nowait(event)
 
-    async def expect(self, typ: str, timeout: float = 2, **kwargs: Union[str, list[str]]) -> Optional[irc.client.Event]:
+    async def expect(self, typ: str, timeout: float = 2, **kwargs: str | list[str]) -> irc.client.Event | None:
         """Groks events until the expect one is found.
 
         If the matching event is not found within a timeout, returns None.

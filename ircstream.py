@@ -45,9 +45,7 @@ import sys
 from typing import (
     Any,
     Iterable,
-    Optional,
     Sequence,
-    Union,
 )
 
 import prometheus_client
@@ -149,7 +147,7 @@ class IRCMessage:
 
     command: str
     params: Sequence[str]
-    source: Optional[str] = None
+    source: str | None = None
 
     @classmethod
     def from_message(cls, message: str) -> IRCMessage:
@@ -212,7 +210,7 @@ class IRCMessage:
 class IRCError(Exception):
     """Exception thrown by IRC command handlers to notify client of a server/client error."""
 
-    def __init__(self, command: ERR, params: Union[list[str], str]) -> None:
+    def __init__(self, command: ERR, params: list[str] | str) -> None:
         super().__init__()
         self.command = command
         self.params = params
@@ -241,7 +239,7 @@ class IRCClient:
         self.channels: set[str] = set()
         self.host: str = ""
         self.port: int = 0
-        self._periodic_ping_task: Optional[asyncio.Task[Any]] = None
+        self._periodic_ping_task: asyncio.Task[Any] | None = None
 
     async def connect(self) -> None:
         """Handle a new connection from a client."""
@@ -284,7 +282,7 @@ class IRCClient:
                 await self.msg("PING", self.server.servername)
                 self.ping_sent = True
 
-    async def msg(self, command: Union[str, IRCNumeric], params: Union[list[str], str]) -> None:
+    async def msg(self, command: str | IRCNumeric, params: list[str] | str) -> None:
         """Prepare and sends a response to the client.
 
         This generally does the right thing, and reduces boilerplate by
@@ -408,7 +406,7 @@ class IRCClient:
         except IndexError:
             raise IRCError(ERR.NEEDMOREPARAMS, ["MODE", "Not enough parameters"]) from None
 
-        modestring: Optional[str]
+        modestring: str | None
         try:
             modestring = params[1]
         except IndexError:
@@ -923,7 +921,7 @@ class PrometheusServer(http.server.ThreadingHTTPServer):
         super().server_bind()
 
 
-def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     """Parse and return the parsed command line arguments."""
     parser = argparse.ArgumentParser(
         prog="ircstream",
@@ -1002,7 +1000,7 @@ async def start_servers(config: configparser.ConfigParser) -> None:
         raise SystemExit(-2) from exc
 
 
-def main(argv: Optional[Sequence[str]] = None) -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     """Entry point."""
     options = parse_args(argv)
 
