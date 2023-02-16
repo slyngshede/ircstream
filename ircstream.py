@@ -216,7 +216,7 @@ class IRCMessage:
 class IRCError(Exception):
     """Exception thrown by IRC command handlers to notify client of a server/client error."""
 
-    def __init__(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
+    def __init__(self, command: ERR, params: Union[List[str], str]) -> None:
         super().__init__()
         self.command = command
         self.params = params
