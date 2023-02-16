@@ -39,6 +39,7 @@ import enum
 import errno
 import http.server
 import logging
+import pathlib
 import re
 import socket
 import sys
@@ -925,7 +926,10 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         description="MediaWiki RecentChanges → IRC gateway",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--config-file", "-c", default="/etc/ircstream.conf", help="Path to configuration file")
+    cfg_dflt = pathlib.Path("ircstream.conf")
+    if not cfg_dflt.exists():
+        cfg_dflt = pathlib.Path("/etc/ircstream.conf")
+    parser.add_argument("--config-file", "-c", type=pathlib.Path, default=cfg_dflt, help="Path to configuration file")
 
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
     parser.add_argument("--log-level", default="INFO", choices=log_levels, type=str.upper, help="Log level")
@@ -1005,11 +1009,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     # only set e.g. INFO or DEBUG for our own loggers
     structlog.get_logger("ircstream").setLevel(options.log_level)
     log = structlog.get_logger("ircstream.main")
-    log.info("Starting IRCStream", config_file=options.config_file, version=__version__)
+    log.info("Starting IRCStream", config_file=str(options.config_file), version=__version__)
 
     config = configparser.ConfigParser(strict=True)
     try:
-        with open(options.config_file, encoding="utf-8") as config_fh:
+        with options.config_file.open(encoding="utf-8") as config_fh:
             config.read_file(config_fh)
     except OSError as exc:
         log.critical(f"Cannot open configuration file: {exc.strerror}", errno=errno.errorcode[exc.errno])
