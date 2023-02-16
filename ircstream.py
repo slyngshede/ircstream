@@ -852,6 +852,7 @@ class RC2UDPHandler(asyncio.Protocol):
 
     def __init__(self, server: RC2UDPServer) -> None:
         self.server = server
+        self.running_tasks: set[asyncio.Task[Any]] = set()
 
     def datagram_received(self, data: bytes, _: tuple[str, int]) -> None:
         """Receive a new RC2UDP message and broadcast to all clients."""
@@ -865,7 +866,9 @@ class RC2UDPHandler(asyncio.Protocol):
             return
 
         self.log.debug("Broadcasting message", channel=channel, message=text)
-        asyncio.create_task(self.server.ircserver.broadcast(channel, text))
+        task = asyncio.create_task(self.server.ircserver.broadcast(channel, text))
+        self.running_tasks.add(task)
+        task.add_done_callback(self.running_tasks.discard)
 
 
 class RC2UDPServer:  # pylint: disable=too-few-public-methods
@@ -986,7 +989,7 @@ async def start_servers(config: configparser.ConfigParser) -> None:
 
         if "rc2udp" in config:
             rc2udp_coro = RC2UDPServer(config["rc2udp"], ircserver).serve()
-            asyncio.create_task(rc2udp_coro)
+            rc2udp_task = asyncio.create_task(rc2udp_coro)  # noqa: F841 pylint: disable=unused-variable
         else:
             log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
