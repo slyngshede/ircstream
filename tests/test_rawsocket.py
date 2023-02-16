@@ -186,4 +186,5 @@ async def test_exception(clientsock: BareClient) -> None:
     # needs registration
     clientsock.write(b"RAISEEXC\n")
     data = await clientsock.readlines()
-    assert data and b"Internal server error" in data[-1]
+    assert data
+    assert b"Internal server error" in data[-1]

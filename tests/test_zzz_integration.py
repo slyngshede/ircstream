@@ -9,7 +9,6 @@ import pathlib
 import socket
 import threading
 import time
-from collections.abc import Generator
 from typing import Any
 
 import irc.client  # type: ignore
@@ -63,7 +62,7 @@ class IRCMessageCounter(irc.client.SimpleIRCClient):  # type: ignore
 
 
 @pytest.fixture(name="main")
-def fixture_main(tmp_path: pathlib.Path) -> Generator[threading.Thread, None, None]:
+def fixture_main(tmp_path: pathlib.Path) -> threading.Thread:
     """Fixture for ircstream.main, running it in a thread."""
     # test a semi-stock config, with default ports etc.
     tmp_config = tmp_path / "ircstream-integration.conf"
@@ -92,7 +91,7 @@ def fixture_main(tmp_path: pathlib.Path) -> Generator[threading.Thread, None, No
     time.sleep(0.1)
     if not main.is_alive():
         pytest.skip("Main thread died, likely cannot bind to default ports; skipping test")
-    yield main
+    return main
 
 
 def prometheus_metric(metric: str) -> float:

@@ -57,7 +57,7 @@ def test_configure_logging_json(caplog: pytest.LogCaptureFixture) -> None:
 
 def test_configure_logging_invalid() -> None:
     """Test that an invalid logging configuration does not work."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid logging format"):
         ircstream.configure_logging("invalid")
 
 

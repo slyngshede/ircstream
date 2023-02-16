@@ -15,7 +15,7 @@ import structlog
 
 
 @pytest.fixture(autouse=True)
-def fixture_configure_structlog() -> None:
+def _fixture_configure_structlog() -> None:
     """Fixture to configure structlog. Currently just silences it entirely."""
 
     def dummy_processor(
@@ -27,7 +27,7 @@ def fixture_configure_structlog() -> None:
 
 
 @pytest.fixture(name="config", scope="module", params=["127.0.0.1", "::1"])
-def fixture_config(request: pytest.FixtureRequest) -> Generator[configparser.ConfigParser, None, None]:
+def fixture_config(request: pytest.FixtureRequest) -> configparser.ConfigParser:
     """Fixture representing an example configuration."""
     listen_address = request.param
     config = configparser.ConfigParser()
@@ -56,7 +56,7 @@ def fixture_config(request: pytest.FixtureRequest) -> Generator[configparser.Con
         listen_port = 0
         """
     )
-    yield config
+    return config
 
 
 @pytest.fixture(name="event_loop", scope="module")

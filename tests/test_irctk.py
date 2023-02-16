@@ -9,7 +9,7 @@ import ircstream
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_irctk(ircserver: ircstream.IRCServer) -> None:
     """Test a simple conversation using irctk."""
     hostport = f"{ircserver.address}:{ircserver.port}"
@@ -33,11 +33,13 @@ async def test_irctk(ircserver: ircstream.IRCServer) -> None:
         pytest.skip("irctk not found")
 
     # help typing realize these are not None
-    assert proc.stdin is not None and proc.stdout is not None
+    assert proc.stdin is not None
+    assert proc.stdout is not None
 
     # be careful of interprocess deadlocks!
     async def comm(msg: str) -> str:
-        assert proc.stdin is not None and proc.stdout is not None
+        assert proc.stdin is not None
+        assert proc.stdout is not None
         proc.stdin.write(msg.encode("ascii") + b"\n")
         return (await proc.stdout.readline()).strip().decode("ascii")
 

@@ -27,7 +27,7 @@ async def ircclient_instance(ircserver: ircstream.IRCServer) -> AsyncGenerator[I
     assert await ircclient.expect("error")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 @pytest.mark.usefixtures("ircserver")
 async def test_ping(ircclient: IRCClientAio) -> None:
     """Test the PING command."""

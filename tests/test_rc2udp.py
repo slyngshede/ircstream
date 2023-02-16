@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import configparser
-from collections.abc import AsyncGenerator
 
 import ircstream
 
@@ -58,11 +57,11 @@ def fixture_mock_ircserver() -> MockIRCServer:
 async def fixture_rc2udp_server(
     config: configparser.ConfigParser,
     mock_ircserver: MockIRCServer,
-) -> AsyncGenerator[ircstream.RC2UDPServer, None]:
+) -> ircstream.RC2UDPServer:
     """Fixture for an instance of an RC2UDPServer."""
     rc2udpserver = ircstream.RC2UDPServer(config["rc2udp"], mock_ircserver)  # type: ignore
     await rc2udpserver.serve()
-    yield rc2udpserver
+    return rc2udpserver
 
 
 async def send_datagram(address: str, port: int, data: bytes) -> None:
