@@ -75,19 +75,19 @@ def test_main(tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture) -> None:
     # regular start; ensure that the intended servers are being run
     with patch.object(ircstream.IRCServer, "serve", autospec=True) as mocked_irc_serve:
         with patch.object(ircstream.RC2UDPServer, "serve", autospec=True) as mocked_rc2udp_serve:
-            ircstream.main((args))
+            ircstream.main(args)
             mocked_irc_serve.assert_awaited()
             mocked_rc2udp_serve.assert_awaited()
 
     # ensure the Ctrl+C handler works and does not raise any exceptions
     with patch.object(ircstream.IRCServer, "serve", side_effect=KeyboardInterrupt):
-        ircstream.main((args))  # does not raise an exception
+        ircstream.main(args)  # does not raise an exception
 
     # ensure that OS errors (e.g. if the socket is bound already) are handled
     with patch.object(ircstream.IRCServer, "serve", side_effect=OSError(98, "Address already in use")):
         caplog.clear()
         with pytest.raises(SystemExit) as exc:
-            ircstream.main((args))  # does not raise an exception
+            ircstream.main(args)  # does not raise an exception
 
         exit_status = int(exc.value.code) if exc.value.code is not None else 0
 
@@ -101,7 +101,7 @@ def test_main_config_nonexistent(caplog: pytest.LogCaptureFixture) -> None:
 
     caplog.clear()
     with pytest.raises(SystemExit) as exc:
-        ircstream.main((args))
+        ircstream.main(args)
 
     exit_status = int(exc.value.code) if exc.value.code is not None else 0
     assert exit_status < 0
@@ -121,7 +121,7 @@ def test_main_config_invalid(
 
     caplog.clear()
     with pytest.raises(SystemExit) as exc:
-        ircstream.main((args))
+        ircstream.main(args)
 
     exit_status = int(exc.value.code) if exc.value.code is not None else 0
     assert exit_status < 0
@@ -140,6 +140,6 @@ def test_main_section_no_optional(tmp_path: pathlib.Path) -> None:
 
     with patch.object(ircstream.IRCServer, "serve", autospec=True) as mocked_irc_serve:
         with patch.object(ircstream.RC2UDPServer, "serve", autospec=True) as mocked_rc2udp_serve:
-            ircstream.main((args))
+            ircstream.main(args)
             mocked_irc_serve.assert_awaited()
             mocked_rc2udp_serve.assert_not_awaited()
