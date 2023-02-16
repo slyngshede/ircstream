@@ -11,6 +11,7 @@ __pycache__
 /.coverage
 /.pytest_cache
 /.pybuild
+build/
 
 debian/*.debhelper
 debian/debhelper-build-stamp

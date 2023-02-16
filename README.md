@@ -49,7 +49,8 @@ Python 3.9+, plus the following modules from PyPI or your distribution:
 The software is currently self-contained in a single Python file, so running it from the cloned directory should work,
 provided the necessary libraries above are also present.
 
-A standard setuptools `setup.py` is provided as well, and should more future-proof.
+A standard `pyproject.toml` using setuptools as the build system, as well as a
+legacy `setup.py` are provided as well.
 
 # Copyright and license
 

@@ -1,3 +1,51 @@
+[build-system]
+requires = ["setuptools>=45"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["ircstream"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ircstream.__version__"}
+
+[project]
+requires-python = ">=3.9"
+name = "ircstream"
+dynamic = ["version"]
+authors = [
+    {name = "Faidon Liambotis", email = "paravoid@debian.org"},
+]
+maintainers = [
+    {name = "Faidon Liambotis", email = "paravoid@debian.org"},
+]
+description = "MediaWiki RC→IRC gateway"
+readme = "README.md"
+keywords = ["irc", "mediawiki", "wikimedia"]
+license = {text = "Apache-2.0"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Developers",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content :: Wiki",
+    "Topic :: Communications :: Chat",
+    "Typing :: Typed",
+]
+dependencies = [
+    "prometheus_client",
+    "structlog",
+]
+
+[project.urls]
+homepage = "https://github.com/paravoid/ircstream"
+repository = "https://github.com/paravoid/ircstream.git"
+
+[project.scripts]
+ircstream = "ircstream:main"
+
 # testing
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
