@@ -30,9 +30,9 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     py_modules=["ircstream"],
     maintainer="Faidon Liambotis",
-    maintainer_email="faidon@wikimedia.org",
+    maintainer_email="paravoid@debian.org",
     description="MediaWiki RC->IRC gateway",
-    url="https://github.com/wikimedia/ircstream",
+    url="https://github.com/paravoid/ircstream",
     license="Apache2",
     packages=setuptools.find_packages(),
     classifiers=[
