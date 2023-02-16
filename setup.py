@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Package configuration."""
 
+import pathlib
+
 import setuptools  # type: ignore
 
 
 def get_long_description() -> str:
     """Fetch the long description from README.md."""
-    with open("README.md", encoding="utf-8", mode="r") as readme:
+    with pathlib.Path("README.md").open(encoding="utf-8") as readme:
         return readme.read()
 
 
@@ -15,7 +17,7 @@ def get_version() -> str:
 
     To be replaced by importlib.metadata when we move to Python 3.8 (PEP 566).
     """
-    with open("ircstream.py", encoding="utf-8", mode="r") as code:
+    with pathlib.Path("ircstream.py").open(encoding="utf-8") as code:
         for line in code.readlines():
             if line.startswith("__version__"):
                 delim = '"' if '"' in line else "'"
