@@ -8,7 +8,7 @@ number of legacy clients in the wild relying on this interface.
 
 from __future__ import annotations
 
-__version__ = "0.10.0"
+__version__ = "0.11.0-dev0"
 __author__ = "Faidon Liambotis"
 __copyright__ = """
 Copyright © Faidon Liambotis
