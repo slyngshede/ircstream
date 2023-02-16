@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
-from typing import Any
-from unittest.mock import Mock
+from unittest.mock import patch
 
 import ircstream
 
@@ -62,7 +61,7 @@ def test_configure_logging_invalid() -> None:
         ircstream.configure_logging("invalid")
 
 
-def test_main(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_main(tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture) -> None:
     """Test the main/entry point function."""
     tmp_config = tmp_path / "ircstream-regular.conf"
     tmp_config.write_text(
@@ -73,45 +72,27 @@ def test_main(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, caplog: p
     )
     args = ("--config", str(tmp_config))
 
-    # regular start; ensure that at least the IRC server is being run
-
-    # replace with AsyncMock when Python >= 3.8
-    mocked_serve_sync = Mock()
-
-    async def mocked_serve(self: Any) -> None:
-        mocked_serve_sync(type(self))
-
-    monkeypatch.setattr(ircstream.IRCServer, "serve", mocked_serve)
-    monkeypatch.setattr(ircstream.RC2UDPServer, "serve", mocked_serve)
-    ircstream.main((args))
-
-    mocked_serve_sync.assert_any_call(ircstream.IRCServer)
-    mocked_serve_sync.assert_any_call(ircstream.RC2UDPServer)
+    # regular start; ensure that the intended servers are being run
+    with patch.object(ircstream.IRCServer, "serve", autospec=True) as mocked_irc_serve:
+        with patch.object(ircstream.RC2UDPServer, "serve", autospec=True) as mocked_rc2udp_serve:
+            ircstream.main((args))
+            mocked_irc_serve.assert_awaited()
+            mocked_rc2udp_serve.assert_awaited()
 
     # ensure the Ctrl+C handler works and does not raise any exceptions
-    mocked_serve_keyboardinterrupt_sync = Mock(side_effect=KeyboardInterrupt)
-
-    async def mocked_serve_keyboardinterrupt(_: Any) -> None:
-        mocked_serve_keyboardinterrupt_sync()
-
-    monkeypatch.setattr(ircstream.IRCServer, "serve", mocked_serve_keyboardinterrupt)
-    ircstream.main((args))  # does not raise an exception
+    with patch.object(ircstream.IRCServer, "serve", side_effect=KeyboardInterrupt):
+        ircstream.main((args))  # does not raise an exception
 
     # ensure that OS errors (e.g. if the socket is bound already) are handled
-    mocked_serve_socket_sync = Mock(side_effect=OSError(98, "Address already in use"))
+    with patch.object(ircstream.IRCServer, "serve", side_effect=OSError(98, "Address already in use")):
+        caplog.clear()
+        with pytest.raises(SystemExit) as exc:
+            ircstream.main((args))  # does not raise an exception
 
-    async def mocked_serve_socket(_: Any) -> None:
-        mocked_serve_socket_sync()
+        exit_status = int(exc.value.code) if exc.value.code is not None else 0
 
-    monkeypatch.setattr(ircstream.IRCServer, "serve", mocked_serve_socket)
-    caplog.clear()
-
-    with pytest.raises(SystemExit) as exc:
-        ircstream.main((args))
-
-    exit_status = int(exc.value.code) if exc.value.code is not None else 0
-    assert exit_status < 0
-    assert "Address already in use" in caplog.records[-1].message
+        assert exit_status < 0
+        assert "Address already in use" in caplog.records[-1].message
 
 
 def test_main_config_nonexistent(caplog: pytest.LogCaptureFixture) -> None:
@@ -147,7 +128,7 @@ def test_main_config_invalid(
     assert "Invalid configuration" in caplog.records[-1].message
 
 
-def test_main_section_no_optional(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_section_no_optional(tmp_path: pathlib.Path) -> None:
     """Test the main/entry point function (without optional config)."""
     tmp_config = tmp_path / "ircstream-nooptional.conf"
     tmp_config.write_text(
@@ -157,18 +138,8 @@ def test_main_section_no_optional(tmp_path: pathlib.Path, monkeypatch: pytest.Mo
     )
     args = ("--config", str(tmp_config))
 
-    # ensure that the IRC server and only the IRC server is being run
-
-    # replace with AsyncMock when Python >= 3.8
-    mocked_serve_sync = Mock()
-
-    async def mocked_serve(self: Any) -> None:
-        mocked_serve_sync(type(self))
-
-    monkeypatch.setattr(ircstream.IRCServer, "serve", mocked_serve)
-    monkeypatch.setattr(ircstream.RC2UDPServer, "serve", mocked_serve)
-    ircstream.main((args))
-
-    mocked_serve_sync.assert_any_call(ircstream.IRCServer)
-    with pytest.raises(AssertionError):
-        mocked_serve_sync.assert_any_call(ircstream.RC2UDPServer)
+    with patch.object(ircstream.IRCServer, "serve", autospec=True) as mocked_irc_serve:
+        with patch.object(ircstream.RC2UDPServer, "serve", autospec=True) as mocked_rc2udp_serve:
+            ircstream.main((args))
+            mocked_irc_serve.assert_awaited()
+            mocked_rc2udp_serve.assert_not_awaited()

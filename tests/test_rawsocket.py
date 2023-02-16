@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, AsyncGenerator, Callable, Optional, Sequence
-from unittest.mock import Mock
+from unittest.mock import patch
 
 import ircstream
 
@@ -136,11 +136,7 @@ async def test_unicodeerror(ircserver: ircstream.IRCServer, clientsock: BareClie
     assert data == []
 
 
-async def test_broadcast_failure(
-    monkeypatch: pytest.MonkeyPatch,
-    clientsock: BareClient,
-    ircserver: ircstream.IRCServer,
-) -> None:
+async def test_broadcast_failure(clientsock: BareClient, ircserver: ircstream.IRCServer) -> None:
     """Test that exceptions in the broadcast() method are handled."""
     # login to the client (normal)
     clientsock.write(b"USER one two three four\n")
@@ -155,10 +151,7 @@ async def test_broadcast_failure(
     assert any(b"JOIN #channel" in response for response in data)
 
     # ...and now actually test
-    with monkeypatch.context() as mpcontext:
-        mocked_send_async = Mock(side_effect=OSError("dummy"))
-        mpcontext.setattr(ircstream.IRCClient, "send", mocked_send_async)
-
+    with patch.object(ircstream.IRCClient, "send", side_effect=OSError("dummy")):
         await ircserver.broadcast("#channel", "should fail silently")
 
 
