@@ -47,9 +47,8 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 import prometheus_client
-from prometheus_client import Counter, Gauge
-
 import structlog
+from prometheus_client import Counter, Gauge
 
 
 class IRCNumeric(enum.Enum):

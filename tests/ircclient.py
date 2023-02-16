@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import socket
-from typing import (
-    Any,
-)
+from typing import Any
 
 import irc.client  # type: ignore
 import irc.client_aio  # type: ignore

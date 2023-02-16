@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ircstream import ERR, RPL
-
 import yaml
+
+from ircstream import ERR, RPL
 
 TEST_NUMERICS_YAML = Path("tests") / Path("data") / "numerics.yaml"
 

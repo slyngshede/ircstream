@@ -5,12 +5,10 @@ from __future__ import annotations
 import asyncio
 import configparser
 
-import ircstream
-
 import prometheus_client
-
 import pytest
 
+import ircstream
 
 pytestmark = pytest.mark.asyncio
 

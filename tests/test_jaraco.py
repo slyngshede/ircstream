@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-import ircstream
-
 import pytest
+
+import ircstream
 
 from .ircclient import IRCClientAio
 

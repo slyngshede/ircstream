@@ -6,11 +6,10 @@ import json
 import pathlib
 from unittest.mock import patch
 
-import ircstream
-
 import pytest
-
 import structlog
+
+import ircstream
 
 
 def test_parse_args_help(capsys: pytest.CaptureFixture[str]) -> None:

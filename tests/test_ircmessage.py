@@ -6,11 +6,10 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ircstream import IRCMessage
-
 import pytest
-
 import yaml
+
+from ircstream import IRCMessage
 
 TEST_DATA_DIR = Path("tests") / Path("data")
 

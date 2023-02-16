@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 
-import ircstream
-
 import pytest
+
+import ircstream
 
 
 @pytest.mark.asyncio()

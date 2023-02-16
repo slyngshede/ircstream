@@ -12,10 +12,9 @@ from collections.abc import AsyncGenerator, Sequence
 from typing import Any, Callable
 from unittest.mock import patch
 
-import ircstream
-
 import pytest
 
+import ircstream
 
 pytestmark = pytest.mark.asyncio
 

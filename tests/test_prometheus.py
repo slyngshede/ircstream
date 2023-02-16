@@ -7,9 +7,9 @@ import http.client
 import threading
 from collections.abc import Generator
 
-import ircstream
-
 import pytest
+
+import ircstream
 
 
 @pytest.fixture(name="prometheus_server", scope="module")

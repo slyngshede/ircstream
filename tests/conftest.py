@@ -7,11 +7,10 @@ import configparser
 import logging
 from collections.abc import AsyncGenerator, Generator
 
-import ircstream
-
 import pytest
-
 import structlog
+
+import ircstream
 
 
 @pytest.fixture(autouse=True)

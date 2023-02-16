@@ -13,11 +13,9 @@ from typing import Any
 
 import irc.client  # type: ignore
 import irc.connection  # type: ignore
-
-import ircstream
-
 import pytest
 
+import ircstream
 
 SERVER_IP = "127.0.0.1"
 PORTS = {
