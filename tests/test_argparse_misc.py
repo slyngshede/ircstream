@@ -29,7 +29,7 @@ def test_configure_logging_plain(caplog: pytest.LogCaptureFixture) -> None:
     ircstream.configure_logging("plain")
     log = structlog.get_logger("testlogger")
     caplog.clear()
-    log.warn("this is a test log")
+    log.warning("this is a test log")
     assert ["this is a test log"] == [rec.message for rec in caplog.records]
 
 
@@ -39,7 +39,7 @@ def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
     ircstream.configure_logging("console")
     log = structlog.get_logger("testlogger")
     caplog.clear()
-    log.warn("this is a test log")
+    log.warning("this is a test log")
     assert ["[warning  ] this is a test log"] == [rec.message for rec in caplog.records]
 
 
@@ -48,7 +48,7 @@ def test_configure_logging_json(caplog: pytest.LogCaptureFixture) -> None:
     ircstream.configure_logging("json")
     log = structlog.get_logger("testlogger")
     caplog.clear()
-    log.warn("this is a json log", key="value")
+    log.warning("this is a json log", key="value")
 
     parsed_logs = [json.loads(rec.message) for rec in caplog.records]
     assert ["this is a json log"] == [rec["event"] for rec in parsed_logs]
