@@ -228,7 +228,7 @@ class IRCClient:
         self.reader = reader
         self.writer = writer
 
-        self.signon = datetime.datetime.utcnow()
+        self.signon = datetime.datetime.now(tz=datetime.timezone.utc)
         self.last_heard = self.signon
         self.ping_sent = False
         self.buffer = b""
@@ -269,7 +269,7 @@ class IRCClient:
             await asyncio.sleep(self.server.client_timeout / 2)
             timeout = self.server.client_timeout
             # if we haven't heard from the client in N seconds, disconnect
-            delta = datetime.datetime.utcnow() - self.last_heard
+            delta = datetime.datetime.now(tz=datetime.timezone.utc) - self.last_heard
             if delta > datetime.timedelta(seconds=timeout):
                 await self.msg("ERROR", "Closing Link: (Ping timeout)")
                 await self.terminate()
@@ -520,7 +520,7 @@ class IRCClient:
 
         await self.msg(RPL.WELCOME, "Welcome to IRCStream")
         await self.msg(RPL.YOURHOST, f"Your host is {self.server.servername}, running version {__version__}")
-        await self.msg(RPL.CREATED, f"This server was created {self.server.boot_time:%c}")
+        await self.msg(RPL.CREATED, f"This server was created {self.server.boot_time:%c} UTC")
         await self.msg(RPL.MYINFO, f"{self.server.servername} {__version__} i {''.join(cmodes)}")
         await self.msg(
             RPL.ISUPPORT,
@@ -565,7 +565,7 @@ class IRCClient:
 
     async def handle_pong(self, _: list[str]) -> None:
         """Handle client PONG responses to keep the connection alive."""
-        self.last_heard = datetime.datetime.utcnow()
+        self.last_heard = datetime.datetime.now(tz=datetime.timezone.utc)
         self.ping_sent = False
 
     async def handle_join(self, params: list[str]) -> None:
@@ -775,7 +775,7 @@ class IRCServer:
         self.topic_tmpl = config.get("topic_tmpl", "Stream for topic {channel}")
         self.welcome_msg = config.get("welcome_msg", "Welcome!")
 
-        self.boot_time = datetime.datetime.utcnow()
+        self.boot_time = datetime.datetime.now(tz=datetime.timezone.utc)
         self._channels: dict[str, set[IRCClient]] = {}
         self.client_timeout = 120
 
