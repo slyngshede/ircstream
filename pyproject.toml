@@ -76,11 +76,3 @@ disable = [
   "too-many-public-methods",
   "wrong-import-order",
 ]
-
-[tool.flake8]
-max-line-length = 120
-extend-ignore = [
-    "D107", # Missing docstring in `__init__`
-    "E203", # https://black.readthedocs.io/en/stable/faq.html#why-are-flake8-s-e203-and-w503-violated
-    "D202", # https://github.com/PyCQA/pydocstyle/issues/627
-]
