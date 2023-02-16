@@ -44,13 +44,9 @@ import socket
 import sys
 from typing import (
     Any,
-    Dict,
     Iterable,
-    List,
     Optional,
     Sequence,
-    Set,
-    Tuple,
     Union,
 )
 
@@ -216,7 +212,7 @@ class IRCMessage:
 class IRCError(Exception):
     """Exception thrown by IRC command handlers to notify client of a server/client error."""
 
-    def __init__(self, command: ERR, params: Union[List[str], str]) -> None:
+    def __init__(self, command: ERR, params: Union[list[str], str]) -> None:
         super().__init__()
         self.command = command
         self.params = params
@@ -242,7 +238,7 @@ class IRCClient:
         self.ping_sent = False
         self.buffer = b""
         self.user, self.realname, self.nick = "", "", ""
-        self.channels: Set[str] = set()
+        self.channels: set[str] = set()
         self.host: str = ""
         self.port: int = 0
         self._periodic_ping_task: Optional[asyncio.Task[Any]] = None
@@ -288,7 +284,7 @@ class IRCClient:
                 await self.msg("PING", self.server.servername)
                 self.ping_sent = True
 
-    async def msg(self, command: Union[str, IRCNumeric], params: Union[List[str], str]) -> None:
+    async def msg(self, command: Union[str, IRCNumeric], params: Union[list[str], str]) -> None:
         """Prepare and sends a response to the client.
 
         This generally does the right thing, and reduces boilerplate by
@@ -386,18 +382,18 @@ class IRCClient:
         except (ConnectionResetError, BrokenPipeError):
             pass
 
-    async def handle_cap(self, params: List[str]) -> None:
+    async def handle_cap(self, params: list[str]) -> None:
         """Stub for the CAP (capability) command.
 
         Ignore and do not send unknown command, per IRC v3.1/v3.2.
         """
 
-    async def handle_pass(self, _: List[str]) -> None:
+    async def handle_pass(self, _: list[str]) -> None:
         """Stub for the PASS command."""
         if self.registered:
             raise IRCError(ERR.ALREADYREGISTERED, "You may not reregister")
 
-    async def handle_who(self, params: List[str]) -> None:
+    async def handle_who(self, params: list[str]) -> None:
         """Stub for the WHO command."""
         try:
             mask = params[0]
@@ -405,7 +401,7 @@ class IRCClient:
             mask = "*"
         await self.msg(RPL.ENDOFWHO, [mask, "End of /WHO list."])
 
-    async def handle_mode(self, params: List[str]) -> None:
+    async def handle_mode(self, params: list[str]) -> None:
         """Handle the MODE command, for both channel and user modes."""
         try:
             target = params[0]
@@ -439,7 +435,7 @@ class IRCClient:
             else:
                 raise IRCError(ERR.NOSUCHNICK, [target, "No such nick/channel"])
 
-    async def handle_whois(self, params: List[str]) -> None:
+    async def handle_whois(self, params: list[str]) -> None:
         """Handle the WHOIS command."""
         if len(params) == 2:
             nicklist = params[1]
@@ -472,7 +468,7 @@ class IRCClient:
         # nicklist and not nickmask, on purpose
         await self.msg(RPL.ENDOFWHOIS, [nicklist, "End of /WHOIS list"])
 
-    async def handle_whowas(self, params: List[str]) -> None:
+    async def handle_whowas(self, params: list[str]) -> None:
         """Handle the WHOWAS command."""
         try:
             nick = params[0]
@@ -482,7 +478,7 @@ class IRCClient:
         await self.msg(ERR.WASNOSUCHNICK, [nick, "There was no such nickname"])
         await self.msg(RPL.ENDOFWHOWAS, [nick, "End of WHOWAS"])
 
-    async def handle_nick(self, params: List[str]) -> None:
+    async def handle_nick(self, params: list[str]) -> None:
         """Handle the initial setting of the user's nickname and nick changes."""
         try:
             nick = params[0]
@@ -502,7 +498,7 @@ class IRCClient:
             await self.msg("NICK", [nick])
             self.nick = nick
 
-    async def handle_user(self, params: List[str]) -> None:
+    async def handle_user(self, params: list[str]) -> None:
         """Handle the USER command which identifies the user to the server."""
         try:
             user, _, _, realname = params[:4]
@@ -552,14 +548,14 @@ class IRCClient:
         self.log = self.log.bind(client_id=self.internal_ident)
         self.log.info("Client registered")
 
-    async def handle_motd(self, _: List[str]) -> None:
+    async def handle_motd(self, _: list[str]) -> None:
         """Handle the MOTD command."""
         await self.msg(RPL.MOTDSTART, "- Message of the day -")
         for line in self.server.welcome_msg.strip().split("\n"):
             await self.msg(RPL.MOTD, "- " + line)
         await self.msg(RPL.ENDOFMOTD, "End of /MOTD command.")
 
-    async def handle_ping(self, params: List[str]) -> None:
+    async def handle_ping(self, params: list[str]) -> None:
         """Handle client PING requests to keep the connection alive."""
         try:
             origin = params[0]
@@ -572,12 +568,12 @@ class IRCClient:
             destination = self.server.servername
         await self.msg("PONG", [destination, origin])
 
-    async def handle_pong(self, _: List[str]) -> None:
+    async def handle_pong(self, _: list[str]) -> None:
         """Handle client PONG responses to keep the connection alive."""
         self.last_heard = datetime.datetime.utcnow()
         self.ping_sent = False
 
-    async def handle_join(self, params: List[str]) -> None:
+    async def handle_join(self, params: list[str]) -> None:
         """Handle the JOIN command."""
         try:
             channels = params[0]  # ignore param 1, i.e. channel keys
@@ -607,7 +603,7 @@ class IRCClient:
 
             self.log.info("User subscribed to feed", channel=channel)
 
-    async def handle_topic(self, params: List[str]) -> None:
+    async def handle_topic(self, params: list[str]) -> None:
         """Handle the TOPIC command.
 
         Shows a hardcoded topic message when asked for one, and always deny
@@ -629,7 +625,7 @@ class IRCClient:
         botid = self.server.botname + "!" + self.server.botname + "@" + self.server.servername
         await self.msg(RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))])
 
-    async def handle_names(self, params: List[str]) -> None:
+    async def handle_names(self, params: list[str]) -> None:
         """Handle the NAMES command.
 
         Every channel has the "bot" connected, plus, optionally, the connecting
@@ -653,7 +649,7 @@ class IRCClient:
         await self.msg(RPL.NAMREPLY, ["=", channel, " ".join(nicklist)])
         await self.msg(RPL.ENDOFNAMES, [channel, "End of /NAMES list"])
 
-    async def handle_privmsg(self, params: List[str]) -> None:
+    async def handle_privmsg(self, params: list[str]) -> None:
         """Handle the PRIVMSG command, sending a message to a user or channel.
 
         Almost no-op in our case, as we only allow the bot to message users.
@@ -674,7 +670,7 @@ class IRCClient:
             else:
                 await self.msg(ERR.NOSUCHNICK, [target, "No such nick/channel"])
 
-    async def handle_notice(self, params: List[str]) -> None:
+    async def handle_notice(self, params: list[str]) -> None:
         """Handle the NOTICE command, sending a notice to a user or channel.
 
         We only allow self-notices, and per RFC, do not return any errors.
@@ -687,7 +683,7 @@ class IRCClient:
         if self.nick in targets.split(","):
             await self.msg("NOTICE", [self.nick, msg])  # echo back
 
-    async def handle_part(self, params: List[str]) -> None:
+    async def handle_part(self, params: list[str]) -> None:
         """Handle the PART command."""
         try:
             channels = params[0]
@@ -705,7 +701,7 @@ class IRCClient:
                 # don't raise IRCError because this can be one of many channels
                 await self.msg(ERR.NOTONCHANNEL, [channel, "You're not on that channel"])
 
-    async def handle_list(self, params: List[str]) -> None:
+    async def handle_list(self, params: list[str]) -> None:
         """Handle the LIST command."""
         channels: Iterable[str]
         try:
@@ -719,7 +715,7 @@ class IRCClient:
             await self.msg(RPL.LIST, [channel, usercount, self.server.topic_tmpl.format(channel=channel)])
         await self.msg(RPL.LISTEND, "End of /LIST")
 
-    async def handle_quit(self, params: List[str]) -> None:
+    async def handle_quit(self, params: list[str]) -> None:
         """Handle the client breaking off the connection with a QUIT command."""
         try:
             reason = params[0]
@@ -785,12 +781,12 @@ class IRCServer:
         self.welcome_msg = config.get("welcome_msg", "Welcome!")
 
         self.boot_time = datetime.datetime.utcnow()
-        self._channels: Dict[str, Set[IRCClient]] = {}
+        self._channels: dict[str, set[IRCClient]] = {}
         self.client_timeout = 120
 
         # set up a few Prometheus metrics
         registry = prometheus_client.CollectorRegistry()
-        self.metrics: Dict[str, Any[Gauge, Counter]] = {
+        self.metrics: dict[str, Any[Gauge, Counter]] = {
             "clients": Gauge("ircstream_clients", "Number of IRC clients", registry=registry),
             "channels": Gauge("ircstream_channels", "Number of IRC channels", registry=registry),
             "messages": Counter("ircstream_messages", "Count of RC messages broadcasted", registry=registry),
@@ -861,7 +857,7 @@ class RC2UDPHandler(asyncio.Protocol):
     def __init__(self, server: RC2UDPServer) -> None:
         self.server = server
 
-    def datagram_received(self, data: bytes, _: Tuple[str, int]) -> None:
+    def datagram_received(self, data: bytes, _: tuple[str, int]) -> None:
         """Receive a new RC2UDP message and broadcast to all clients."""
         try:
             decoded = data.decode("utf8")
@@ -948,7 +944,7 @@ def configure_logging(log_format: str = "plain") -> None:
     """Configure logging parameters."""
     logging.basicConfig(format="%(message)s", level=logging.WARNING)
 
-    processors: List[structlog.types.Processor] = [
+    processors: list[structlog.types.Processor] = [
         structlog.stdlib.filter_by_level,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,

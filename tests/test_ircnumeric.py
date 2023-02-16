@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Set
 
 from ircstream import ERR, RPL
 
@@ -24,7 +23,7 @@ def test_numeric() -> None:
     # build a name->(numeric, numeric, ...) dictionary, e.g. RPL_WELCOME -> (001,)
     with TEST_NUMERICS_YAML.open(encoding="utf-8") as yamlfile:
         yamldata = yaml.load(yamlfile.read(), Loader=yaml.SafeLoader)
-    numerics: Dict[str, Set[str]] = {}
+    numerics: dict[str, set[str]] = {}
     for value in yamldata["values"]:
         # numerics are not necessarily unique and vary by implementation.
         # e.g. RPL_WHOISHOST is both 378 and 616, and 378 can also be RPL_BANEXPIRED

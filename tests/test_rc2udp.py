@@ -6,8 +6,6 @@ import asyncio
 import configparser
 from typing import (
     AsyncGenerator,
-    List,
-    Tuple,
 )
 
 import ircstream
@@ -28,7 +26,7 @@ class MockIRCServer:
 
     def __init__(self) -> None:
         self._event = asyncio.Event()  # set when a broadcast event has been sent
-        self.data: List[Tuple[str, str]] = []  # accumulates parsed broadcast messages received
+        self.data: list[tuple[str, str]] = []  # accumulates parsed broadcast messages received
         self.metrics = {  # emulates the prometheus interface
             "errors": prometheus_client.Counter("mock_errors", "Count of mocked errors", ["type"]),
         }
