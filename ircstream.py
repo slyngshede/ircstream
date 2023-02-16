@@ -6,29 +6,26 @@ IRC protocol. It was written mainly for compatibility reasons, as there are a
 number of legacy clients in the wild relying on this interface.
 """
 
+# Copyright © Faidon Liambotis
+# Copyright © Wikimedia Foundation, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY CODE, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 __version__ = "0.11.0-dev0"
-__author__ = "Faidon Liambotis"
-__copyright__ = """
-Copyright © Faidon Liambotis
-Copyright © Wikimedia Foundation, Inc.
-"""
-__license__ = """
-SPDX-License-Identifier: Apache-2.0
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY CODE, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
 
 import argparse
 import asyncio
