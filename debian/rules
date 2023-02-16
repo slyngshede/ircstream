@@ -5,7 +5,7 @@
 export PYBUILD_NAME=ircstream
 
 %:
-	dh $@ --with python3 --buildsystem=pybuild
+	dh $@ --buildsystem=pybuild
 
 override_dh_auto_test:
 	# we do that with tox instead

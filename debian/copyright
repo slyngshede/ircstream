@@ -3,12 +3,12 @@ Upstream-Name: ircstream
 Source: https://github.com/wikimedia/ircstream
 
 Files: *
-Copyright: 2017-2021 Faidon Liambotis
+Copyright: 2017-2023 Faidon Liambotis
            2017-2021 Wikimedia Foundation, Inc.
 License: Apache-2.0
 
 Files: debian/*
-Copyright: Faidon Liambotis
+Copyright: 2020-2023 Faidon Liambotis
 License: Apache-2.0
 
 License: Apache-2.0
@@ -23,6 +23,6 @@ License: Apache-2.0
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
  limitations under the License.
- .
+Comment:
  On Debian systems, the complete text of the Apache version 2.0 license
  can be found in "/usr/share/common-licenses/Apache-2.0".

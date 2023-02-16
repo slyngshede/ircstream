@@ -5,11 +5,14 @@ Maintainer: Faidon Liambotis <paravoid@debian.org>
 Build-Depends:
  debhelper-compat (= 13),
  dh-python,
+ dh-sequence-python3,
  python3-all,
  python3-setuptools,
-Standards-Version: 4.5.1
+Standards-Version: 4.6.2
 Homepage: https://github.com/paravoid/ircstream
 X-Python3-Version: >= 3.7
+Rules-Requires-Root: no
+Testsuite: autopkgtest-pkg-pybuild
 
 Package: ircstream
 Architecture: all
