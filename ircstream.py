@@ -106,7 +106,6 @@ class ERR(IRCNumeric):
     NEEDMOREPARAMS = 461
     ALREADYREGISTERED = 462
     CHANOPRIVSNEEDED = 482
-    UMODEUNKNOWNFLAG = 501
     USERSDONTMATCH = 502
 
 
@@ -228,7 +227,6 @@ class IRCClient:
         self.signon = datetime.datetime.now(tz=datetime.timezone.utc)
         self.last_heard = self.signon
         self.ping_sent = False
-        self.buffer = b""
         self.user, self.realname, self.nick = "", "", ""
         self.channels: set[str] = set()
         self.host: str = ""
