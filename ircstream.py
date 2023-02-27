@@ -570,9 +570,7 @@ class IRCClient:
         except IndexError:
             raise IRCError(ERR.NEEDMOREPARAMS, ["JOIN", "Not enough parameters"]) from None
 
-        for channel in channels.split(","):
-            channel = channel.strip()
-
+        for channel in (i.strip() for i in channels.split(",")):
             # is this a valid channel name?
             if not re.fullmatch(r"#([\w\d_\.-])+", channel) or len(channel) > 50:
                 await self.msg(ERR.NOSUCHCHANNEL, [channel, "No such channel"])
@@ -649,8 +647,7 @@ class IRCClient:
         except ValueError:
             raise IRCError(ERR.NEEDMOREPARAMS, ["PRIVMSG", "Not enough parameters"]) from None
 
-        for target in targets.split(","):
-            target = target.strip()
+        for target in (i.strip() for i in targets.split(",")):
             if target.startswith("#"):
                 await self.msg(ERR.CANNOTSENDTOCHAN, [target, "Cannot send to channel"])
             elif target == self.server.botname:
@@ -680,8 +677,7 @@ class IRCClient:
         except IndexError:
             raise IRCError(ERR.NEEDMOREPARAMS, ["PART", "Not enough parameters"]) from None
 
-        for channel in channels.split(","):
-            channel = channel.strip()
+        for channel in (i.strip() for i in channels.split(",")):
             if channel in self.channels:
                 self.channels.remove(channel)  # remove from client's own channel list
                 self.server.unsubscribe(channel, self)  # unsubscribe from the server's (global) list
