@@ -38,6 +38,31 @@ dependencies = [
     "prometheus_client>=0.9.0",
     "structlog>=20.1.0",
 ]
+optional-dependencies.tests = [
+    "coverage[toml]",
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "irc",
+    "pyyaml",
+]
+optional-dependencies.type = [
+    "ircstream[tests]",
+    "mypy",
+    "types-PyYAML",
+]
+optional-dependencies.lint = [
+    "ircstream[tests]",
+    "validate-pyproject[all]",
+    "ruff",
+    "black",
+    "pylint",
+]
+optional-dependencies.dev = [
+    "ircstream[tests]",
+    "ircstream[type]",
+    "ircstream[lint]",
+]
 
 [project.urls]
 homepage = "https://github.com/paravoid/ircstream"
