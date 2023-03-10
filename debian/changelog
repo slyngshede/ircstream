@@ -7,6 +7,8 @@ ircstream (0.11.0.dev0) UNRELEASED; urgency=medium
     - Specify autopkgtest to autopkgtest-pkg-pybuild.
     - Bump copyright years.
     - Bump Standards-Version to 4.6.2.
+  * Run tests during the package build as well, and by extension during
+    autopkgtests.
 
  -- Faidon Liambotis <paravoid@debian.org>  Thu, 14 Feb 2023 22:30:22 +0200
 

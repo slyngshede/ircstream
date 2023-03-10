@@ -6,6 +6,3 @@ export PYBUILD_NAME=ircstream
 
 %:
 	dh $@ --buildsystem=pybuild
-
-override_dh_auto_test:
-	# we do that with tox instead
