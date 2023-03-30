@@ -50,7 +50,7 @@ def test_msg_split(data_msg_split: Mapping[str, Any]) -> None:
     if "verb" in atoms:
         assert parsed.command.lower() == atoms["verb"].lower()
     else:
-        assert parsed.command == ""
+        assert not parsed.command
 
     if "params" in atoms:
         atom_params = list(atoms["params"])

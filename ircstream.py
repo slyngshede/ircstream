@@ -162,7 +162,7 @@ class IRCMessage:
 
         while original_params:
             # skip multiple spaces in middle of message, as per RFC 1459
-            if original_params[0] == "" and len(original_params) > 1:
+            if not original_params[0] and len(original_params) > 1:
                 original_params.pop(0)
                 continue
             elif original_params[0].startswith(":"):
