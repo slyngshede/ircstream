@@ -594,8 +594,7 @@ class IRCClient:
             raise IRCError(ERR.CHANOPRIVSNEEDED, [channel, "You're not a channel operator"])
 
         await self.msg(RPL.TOPIC, [channel, self.server.topic_tmpl.format(channel=channel)])
-        botid = self.server.botname + "!" + self.server.botname + "@" + self.server.servername
-        await self.msg(RPL.TOPICWHOTIME, [channel, botid, str(int(self.server.boot_time.timestamp()))])
+        await self.msg(RPL.TOPICWHOTIME, [channel, self.server.botid, str(int(self.server.boot_time.timestamp()))])
 
     async def handle_names(self, params: list[str]) -> None:
         """Handle the NAMES command.
@@ -800,13 +799,17 @@ class IRCServer:
         """Return a list of all the channel names known to the server."""
         return list(self._channels)
 
+    @property
+    def botid(self) -> str:
+        """Return the extended prefix of the bot, to be used as e.g. source in PRIVMSG."""
+        return self.botname + "!" + self.botname + "@" + self.servername
+
     async def broadcast(self, target: str, msg: str) -> None:
         """Broadcast a message to all clients that have joined a channel.
 
         The source of the message is the bot's name.
         """
-        botid = self.botname + "!" + self.botname + "@" + self.servername
-        message = str(IRCMessage("PRIVMSG", [target, msg], source=botid))
+        message = str(IRCMessage("PRIVMSG", [target, msg], source=self.botid))
 
         clients = self._channels.setdefault(target, set())
         for client in clients:
