@@ -1,6 +1,6 @@
-ircstream (0.11.0.dev0) UNRELEASED; urgency=medium
+ircstream (0.11.0) unstable; urgency=medium
 
-  * New development release.
+  * New release.
   * Packaging refresh:
     - Use dh-sequence-python3 instead of --with.
     - Add Rules-Requires-Root: no.
@@ -8,7 +8,7 @@ ircstream (0.11.0.dev0) UNRELEASED; urgency=medium
     - Bump copyright years.
     - Bump Standards-Version to 4.6.2.
 
- -- Faidon Liambotis <paravoid@debian.org>  Thu, 14 Feb 2023 22:30:22 +0200
+ -- Faidon Liambotis <paravoid@debian.org>  Mon, 22 May 2023 18:11:09 +0300
 
 ircstream (0.10.0) unstable; urgency=medium
 
