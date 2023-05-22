@@ -258,7 +258,7 @@ class IRCClient:
                 await self.msg("PING", self.server.servername)
                 self.ping_sent = True
 
-    async def msg(self, command: str | IRCNumeric, params: list[str] | str) -> None:
+    async def msg(self, command: str | IRCNumeric, params: list[str] | str, from_bot: bool = False) -> None:
         """Prepare and sends a response to the client.
 
         This generally does the right thing, and reduces boilerplate by
@@ -273,6 +273,8 @@ class IRCClient:
             source = None
         elif isinstance(command, (RPL, ERR)) or command == "PONG":
             source = self.server.servername
+        elif from_bot:
+            source = self.server.botid
         else:
             source = self.client_ident
 
@@ -809,12 +811,10 @@ class IRCServer:
 
         The source of the message is the bot's name.
         """
-        message = str(IRCMessage("PRIVMSG", [target, msg], source=self.botid))
-
         clients = self._channels.setdefault(target, set())
         for client in clients:
             try:
-                await client.send(message)
+                await client.msg("PRIVMSG", [target, msg], from_bot=True)
             except Exception:  # pylint: disable=broad-except
                 self.metrics["errors"].labels("broadcast").inc()
                 self.log.debug("Unable to broadcast", exc_info=True)
