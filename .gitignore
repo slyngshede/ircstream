@@ -1,3 +1,5 @@
+_version.py
+
 .sw*
 *.swp
 env*/*

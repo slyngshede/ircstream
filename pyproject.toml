@@ -1,12 +1,13 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=61", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["ircstream"]
 
-[tool.setuptools.dynamic]
-version = {attr = "ircstream.__version__"}
+[tool.setuptools_scm]
+version_scheme = "release-branch-semver"
+write_to = "ircstream/_version.py"
 
 [project]
 requires-python = ">=3.9"
@@ -136,6 +137,9 @@ ignore = [
 
 [tool.ruff.per-file-ignores]
 "tests/*.py" = ["S101"]  # Use of `assert` detected
+
+[tool.pylint.main]
+ignore = ["_version.py"]
 
 [tool.pylint.format]
 max-line-length = 120
