@@ -8,10 +8,6 @@ Build-Depends:
  pybuild-plugin-pyproject,
  python3-all,
  python3-setuptools (>= 61),
- python3-pytest <!nocheck>,
- python3-pytest-asyncio <!nocheck>,
- python3-irc <!nocheck>,
- python3-yaml <!nocheck>,
 Standards-Version: 4.6.2
 Homepage: https://github.com/paravoid/ircstream
 X-Python3-Version: >= 3.9
