@@ -1,51 +1,34 @@
-#!/usr/bin/env python3
-"""IRCStream — MediaWiki RecentChanges → IRC gateway.
+"""IRC Server component.
 
-IRCStream is a simple gateway to the MediaWiki recent changes feed, from the
-IRC protocol. It was written mainly for compatibility reasons, as there are a
-number of legacy clients in the wild relying on this interface.
+This implements an IRC Server, capable of broadcasting messages to clients
+through a "fake" IRC bot.
+
+Implements all the relevant bits of the IRC protocol, including a few IRCv3
+extensions.
 """
 
-# Copyright © Faidon Liambotis
-# Copyright © Wikimedia Foundation, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY CODE, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
+# SPDX-FileCopyrightText: Faidon Liambotis
+# SPDX-FileCopyrightText: Wikimedia Foundation
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
 
-__version__ = "0.12.0.dev0"
-
-import argparse
 import asyncio
 import configparser
 import dataclasses
 import datetime
 import enum
 import errno
-import http.server
-import logging
-import pathlib
 import re
 import socket
-import sys
 from collections.abc import Iterable, Sequence
 from typing import Any
 
 import prometheus_client
 import structlog
 from prometheus_client import Counter, Gauge
+
+from ._version import __version__
 
 
 class IRCNumeric(enum.Enum):
@@ -833,194 +816,3 @@ class IRCServer:
                 self.log.debug("Unable to broadcast", exc_info=True)
                 continue  # ignore exceptions, to catch corner cases
         self.metrics["messages"].inc()
-
-
-class RC2UDPHandler(asyncio.Protocol):
-    """A handler implementing the RC2UDP protocol, as used by MediaWiki."""
-
-    log = structlog.get_logger("ircstream.rc2udp")
-
-    def __init__(self, server: RC2UDPServer) -> None:
-        self.server = server
-        self.running_tasks: set[asyncio.Task[Any]] = set()
-
-    def datagram_received(self, data: bytes, _: tuple[str, int]) -> None:
-        """Receive a new RC2UDP message and broadcast to all clients."""
-        try:
-            decoded = data.decode("utf8")
-            channel, text = decoded.split("\t", maxsplit=1)
-            channel = channel.strip()
-            text = text.lstrip().replace("\r", "").replace("\n", "")
-        except Exception:  # pylint: disable=broad-except
-            self.server.ircserver.metrics["errors"].labels("rc2udp-parsing").inc()
-            return
-
-        self.log.debug("Broadcasting message", channel=channel, message=text)
-        task = asyncio.create_task(self.server.ircserver.broadcast(channel, text))
-        self.running_tasks.add(task)
-        task.add_done_callback(self.running_tasks.discard)
-
-
-class RC2UDPServer:  # pylint: disable=too-few-public-methods
-    """A server implementing the RC2UDP protocol, as used by MediaWiki."""
-
-    log = structlog.get_logger("ircstream.rc2udp")
-
-    def __init__(self, config: configparser.SectionProxy, ircserver: IRCServer) -> None:
-        self.ircserver = ircserver
-        self.address = config.get("listen_address", fallback="::")
-        self.port = config.getint("listen_port", fallback=9390)
-
-    async def serve(self) -> None:
-        """Create a new socket, listen to it and serve requests."""
-        loop = asyncio.get_running_loop()
-        local_addr = (self.address, self.port)
-        transport, _ = await loop.create_datagram_endpoint(lambda: RC2UDPHandler(self), local_addr=local_addr)
-        local_addr = transport.get_extra_info("sockname")[:2]
-        self.address, self.port = local_addr  # update address/port based on what bind() returned
-        self.log.info("Listening for RC2UDP broadcast", listen_address=self.address, listen_port=self.port)
-
-
-class PrometheusServer(http.server.ThreadingHTTPServer):
-    """A Prometheus HTTP server."""
-
-    log = structlog.get_logger("ircstream.prometheus")
-    daemon_threads = True
-    allow_reuse_address = True
-
-    def __init__(
-        self,
-        config: configparser.SectionProxy,
-        registry: prometheus_client.CollectorRegistry = prometheus_client.REGISTRY,
-    ) -> None:
-        listen_address = config.get("listen_address", fallback="::")
-        if ":" in listen_address:
-            self.address_family = socket.AF_INET6
-        listen_port = config.getint("listen_port", fallback=9200)
-        super().__init__((listen_address, listen_port), prometheus_client.MetricsHandler.factory(registry))
-        # update address/port based on what bind() returned
-        self.address, self.port = str(self.server_address[0]), self.server_address[1]
-        self.log.info("Listening for Prometheus HTTP", listen_address=self.address, listen_port=self.port)
-
-    def server_bind(self) -> None:
-        """Bind to an IP address.
-
-        Override to set an opt to listen to both IPv4/IPv6 on the same socket.
-        """
-        if self.address_family == socket.AF_INET6:
-            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        super().server_bind()
-
-
-def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
-    """Parse and return the parsed command line arguments."""
-    parser = argparse.ArgumentParser(
-        prog="ircstream",
-        description="MediaWiki RecentChanges → IRC gateway",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    cfg_dflt = pathlib.Path("ircstream.conf")
-    if not cfg_dflt.exists():
-        cfg_dflt = pathlib.Path("/etc/ircstream.conf")
-    parser.add_argument("--config-file", "-c", type=pathlib.Path, default=cfg_dflt, help="Path to configuration file")
-
-    log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")  # no public method to get a list from logging :(
-    parser.add_argument("--log-level", default="INFO", choices=log_levels, type=str.upper, help="Log level")
-    log_formats = ("plain", "console", "json")
-    log_dflt = "console" if sys.stdout.isatty() else "plain"
-    parser.add_argument("--log-format", default=log_dflt, choices=log_formats, help="Log format")
-    return parser.parse_args(argv)
-
-
-def configure_logging(log_format: str = "plain") -> None:
-    """Configure logging parameters."""
-    logging.basicConfig(format="%(message)s", level=logging.WARNING)
-
-    processors: list[structlog.types.Processor] = [
-        structlog.stdlib.filter_by_level,
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-    ]
-    if log_format == "plain":
-        processors += [structlog.dev.ConsoleRenderer(colors=False)]
-    elif log_format == "console":
-        # >= 20.2.0 has this in the default config
-        processors = [structlog.stdlib.add_log_level] + structlog.get_config()["processors"]
-    elif log_format == "json":
-        processors += [
-            structlog.stdlib.add_logger_name,  # adds a "logger" key
-            structlog.stdlib.add_log_level,  # adds a "level" key (string, not int)
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer(sort_keys=True),
-        ]
-    else:
-        raise ValueError(f"Invalid logging format specified: {log_format}")
-
-    structlog.configure(
-        processors=processors,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
-    )
-
-
-async def start_servers(config: configparser.ConfigParser) -> None:
-    """Start all servers in asyncio tasks or threads and then busy-loop."""
-    log = structlog.get_logger("ircstream.main")
-    loop = asyncio.get_running_loop()
-
-    try:
-        if "irc" in config:
-            ircserver = IRCServer(config["irc"])
-            irc_coro = ircserver.serve()
-            irc_task = asyncio.create_task(irc_coro)
-        else:
-            log.critical('Invalid configuration, missing section "irc"')
-            raise SystemExit(-1)
-
-        if "rc2udp" in config:
-            rc2udp_coro = RC2UDPServer(config["rc2udp"], ircserver).serve()
-            rc2udp_task = asyncio.create_task(rc2udp_coro)  # noqa: F841 pylint: disable=unused-variable
-        else:
-            log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
-
-        if "prometheus" in config:
-            prom_server = PrometheusServer(config["prometheus"], ircserver.metrics_registry)
-            prom_server.socket.setblocking(False)
-            loop.add_reader(prom_server.socket, prom_server.handle_request)
-
-        await asyncio.wait_for(irc_task, timeout=None)  # run forever
-    except OSError as exc:
-        log.critical(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
-        raise SystemExit(-2) from exc
-
-
-def main(argv: Sequence[str] | None = None) -> None:
-    """Entry point."""
-    options = parse_args(argv)
-
-    configure_logging(options.log_format)
-    # only set e.g. INFO or DEBUG for our own loggers
-    structlog.get_logger("ircstream").setLevel(options.log_level)
-    log = structlog.get_logger("ircstream.main")
-    log.info("Starting IRCStream", config_file=str(options.config_file), version=__version__)
-
-    config = configparser.ConfigParser(strict=True)
-    try:
-        with options.config_file.open(encoding="utf-8") as config_fh:
-            config.read_file(config_fh)
-    except OSError as exc:
-        log.critical(f"Cannot open configuration file: {exc.strerror}", errno=errno.errorcode[exc.errno])
-        raise SystemExit(-1) from exc
-    except configparser.Error as exc:
-        msg = repr(exc).replace("\n", " ")  # configparser exceptions sometimes include newlines
-        log.critical(f"Invalid configuration, {msg}")
-        raise SystemExit(-1) from exc
-
-    try:
-        asyncio.run(start_servers(config))
-    except KeyboardInterrupt:
-        pass
-
-
-if __name__ == "__main__":
-    main()

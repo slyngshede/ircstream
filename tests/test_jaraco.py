@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
 import pytest
 
-import ircstream
-
 from .ircclient import IRCClientAio
+
+if TYPE_CHECKING:
+    from ircstream.ircserver import IRCServer
 
 pytestmark = pytest.mark.asyncio
 
@@ -16,7 +18,7 @@ BOTNAME = "testsuite-bot"
 
 
 @pytest.fixture(name="ircclient")
-async def ircclient_instance(ircserver: ircstream.IRCServer) -> AsyncGenerator[IRCClientAio, None]:
+async def ircclient_instance(ircserver: IRCServer) -> AsyncGenerator[IRCClientAio, None]:
     """Fixture for an instance of an IRCClient."""
     ircclient = IRCClientAio()
     await ircclient.connect_async(ircserver.address, ircserver.port, BOTNAME)
@@ -37,7 +39,7 @@ async def test_ping(ircclient: IRCClientAio) -> None:
     assert await ircclient.expect("noorigin")
 
 
-async def test_pong(ircserver_short_timeout: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_pong(ircserver_short_timeout: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the PONG command (a server-side ping)."""
     wait_for = (ircserver_short_timeout.client_timeout / 2) + 1
     assert await ircclient.expect("ping", timeout=wait_for)
@@ -54,7 +56,7 @@ async def test_who(ircclient: IRCClientAio) -> None:
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_mode(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_mode(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the MODE command."""
     # channel modes
     ircclient.connection.mode("", "")
@@ -84,7 +86,7 @@ async def test_mode(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> 
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_whois(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_whois(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the WHOIS command."""
     ircclient.connection.whois([ircserver.botname])
     assert await ircclient.expect("whoisuser")
@@ -104,7 +106,7 @@ async def test_whois(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) ->
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_whowas(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_whowas(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the WHOWAS command."""
     ircclient.connection.whowas(ircserver.botname)
     assert await ircclient.expect("wasnosuchnick")
@@ -151,7 +153,7 @@ async def test_user(ircclient: IRCClientAio) -> None:
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_join(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_join(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the JOIN command."""
     ircclient.connection.join("")
     assert await ircclient.expect("needmoreparams")
@@ -188,7 +190,7 @@ async def test_part(ircclient: IRCClientAio) -> None:
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_topic(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_topic(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the TOPIC command."""
     ircclient.connection.topic("")
     assert await ircclient.expect("needmoreparams")
@@ -213,7 +215,7 @@ async def test_topic(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) ->
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_names(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_names(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the NAMES command."""
     ircclient.connection.names("")
     assert await ircclient.expect("endofnames")
@@ -224,7 +226,7 @@ async def test_names(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) ->
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_privmsg(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_privmsg(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the PRIVMSG command."""
     ircclient.connection.privmsg("", "")
     assert await ircclient.expect("needmoreparams")
@@ -245,7 +247,7 @@ async def test_privmsg(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) 
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_notice(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_notice(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the NOTICE command."""
     ircclient.connection.notice("", "")
     assert await ircclient.expect("needmoreparams")
@@ -260,7 +262,7 @@ async def test_notice(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_list(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_list(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test the LIST command."""
     ircclient.connection.list()
     assert await ircclient.expect("listend")
@@ -282,7 +284,7 @@ async def test_nonexistent(ircclient: IRCClientAio) -> None:
 
 
 @pytest.mark.usefixtures("ircserver")
-async def test_conversation(ircserver: ircstream.IRCServer, ircclient: IRCClientAio) -> None:
+async def test_conversation(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
     """Test a scenario of a hypothetic real client/conversation."""
     await ircserver.broadcast("#one-channel", "create the channel")
 

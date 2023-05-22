@@ -46,10 +46,9 @@ Python 3.9+, plus the following modules from PyPI or your distribution:
 * `prometheus_client`
 * `structlog`
 
-The software is currently self-contained in a single Python file, so running it from the cloned directory should work,
-provided the necessary libraries above are also present.
-
-A standard `pyproject.toml` using setuptools as the build system is provided as well.
+You can use `pip install .` to install the package into the standard location of your system, which will install
+an executable in a standard binary location, such as /usr/bin or /bin. Alternatively, provided the necessary libraries
+above have already been installed, one can execute `python3 -m ircstream` to run directly from the cloned source tree.
 
 # Copyright and license
 

@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["ircstream"]
+packages = ["ircstream"]
 
 [tool.setuptools.dynamic]
 version = {attr = "ircstream.__version__"}
@@ -69,7 +69,7 @@ homepage = "https://github.com/paravoid/ircstream"
 repository = "https://github.com/paravoid/ircstream.git"
 
 [project.scripts]
-ircstream = "ircstream:main"
+ircstream = "ircstream.main:run"
 
 # testing
 [tool.pytest.ini_options]
@@ -85,6 +85,7 @@ exclude_lines = [
     "^\\s*raise NotImplementedError\\b",
     "^\\s*return NotImplemented\\b",
     '^if __name__ == "__main__":$',
+    'if TYPE_CHECKING:',
 ]
 
 [tool.mypy]
@@ -145,7 +146,6 @@ disable = [
   "no-else-continue",
   "no-else-return",
   "too-many-instance-attributes",
-  "too-many-lines",
   "too-many-public-methods",
   "wrong-import-order",
 ]

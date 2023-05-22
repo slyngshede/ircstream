@@ -10,7 +10,7 @@ from collections.abc import AsyncGenerator, Generator
 import pytest
 import structlog
 
-import ircstream
+from ircstream.ircserver import IRCClient, IRCServer
 
 
 @pytest.fixture(autouse=True)
@@ -67,7 +67,7 @@ def fixture_event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 
 @pytest.fixture(name="ircserver", scope="module")
-async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator[ircstream.IRCServer, None]:
+async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator[IRCServer, None]:
     """Fixture for an instance of an IRCServer.
 
     This spawns a task to run the server. It yields the IRCServer instance,
@@ -76,12 +76,12 @@ async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator
 
     # set up a fake EXCEPTION command handler, that raises an exception
     # useful to test whether exceptions are actually being caught!
-    async def handle_raiseexc(self: ircstream.IRCClient, _: list[str]) -> None:
+    async def handle_raiseexc(self: IRCClient, _: list[str]) -> None:
         raise NotImplementedError("Purposefully triggered exception")
 
-    ircstream.IRCClient.handle_raiseexc = handle_raiseexc  # type: ignore
+    IRCClient.handle_raiseexc = handle_raiseexc  # type: ignore
 
-    ircserver = ircstream.IRCServer(config["irc"])
+    ircserver = IRCServer(config["irc"])
     irc_task = asyncio.create_task(ircserver.serve())
     yield ircserver
     irc_task.cancel()
@@ -92,7 +92,7 @@ async def fixture_ircserver(config: configparser.ConfigParser) -> AsyncGenerator
 
 
 @pytest.fixture(name="ircserver_short_timeout")
-async def fixture_ircserver_short_timeout(ircserver: ircstream.IRCServer) -> AsyncGenerator[ircstream.IRCServer, None]:
+async def fixture_ircserver_short_timeout(ircserver: IRCServer) -> AsyncGenerator[IRCServer, None]:
     """Return an IRCServer modified to run with a very short timeout.
 
     This is a separate fixture to make sure that the default value is restored

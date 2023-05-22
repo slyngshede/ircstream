@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 import yaml
 
-from ircstream import IRCMessage
+from ircstream.ircserver import IRCMessage
 
 TEST_DATA_DIR = Path("tests") / Path("data")
 

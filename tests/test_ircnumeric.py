@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from ircstream import ERR, RPL
+from ircstream.ircserver import ERR, RPL
 
 TEST_NUMERICS_YAML = Path("tests") / Path("data") / "numerics.yaml"
 

@@ -8,7 +8,7 @@ import configparser
 import prometheus_client
 import pytest
 
-import ircstream
+from ircstream.rc2udp import RC2UDPServer
 
 pytestmark = pytest.mark.asyncio
 
@@ -52,12 +52,9 @@ def fixture_mock_ircserver() -> MockIRCServer:
 
 
 @pytest.fixture(name="rc2udp_server", scope="module")
-async def fixture_rc2udp_server(
-    config: configparser.ConfigParser,
-    mock_ircserver: MockIRCServer,
-) -> ircstream.RC2UDPServer:
+async def fixture_rc2udp_server(config: configparser.ConfigParser, mock_ircserver: MockIRCServer) -> RC2UDPServer:
     """Fixture for an instance of an RC2UDPServer."""
-    rc2udpserver = ircstream.RC2UDPServer(config["rc2udp"], mock_ircserver)  # type: ignore
+    rc2udpserver = RC2UDPServer(config["rc2udp"], mock_ircserver)  # type: ignore
     await rc2udpserver.serve()
     return rc2udpserver
 
@@ -79,11 +76,7 @@ async def send_datagram(address: str, port: int, data: bytes) -> None:
 
 
 @pytest.mark.parametrize("message", ["my message", "#lookslikeachannel", "onetab\tsecond tab"])
-async def test_rc2udp_valid(
-    mock_ircserver: MockIRCServer,
-    rc2udp_server: ircstream.RC2UDPServer,
-    message: str,
-) -> None:
+async def test_rc2udp_valid(mock_ircserver: MockIRCServer, rc2udp_server: RC2UDPServer, message: str) -> None:
     """Test that valid RC2UDP messages are received and parsed correctly."""
     mock_ircserver.clear()
     data = ("#channel", message)
@@ -94,11 +87,7 @@ async def test_rc2udp_valid(
 
 
 @pytest.mark.parametrize("data", [b"#nomessage", b"#channel\tinvalid utf8\x80"])
-async def test_rc2udp_invalid(
-    mock_ircserver: MockIRCServer,
-    rc2udp_server: ircstream.RC2UDPServer,
-    data: bytes,
-) -> None:
+async def test_rc2udp_invalid(mock_ircserver: MockIRCServer, rc2udp_server: RC2UDPServer, data: bytes) -> None:
     """Test that invalid RC2UDP are dropped gracefully."""
     mock_ircserver.clear()
     await send_datagram(rc2udp_server.address, rc2udp_server.port, data)

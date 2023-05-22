@@ -9,13 +9,15 @@ from unittest.mock import patch
 import pytest
 import structlog
 
-import ircstream
+import ircstream.main
+from ircstream.ircserver import IRCServer
+from ircstream.rc2udp import RC2UDPServer
 
 
 def test_parse_args_help(capsys: pytest.CaptureFixture[str]) -> None:
     """Test whether --help returns usage and exits."""
     with pytest.raises(SystemExit) as exc:
-        ircstream.parse_args(["--help"])
+        ircstream.main.parse_args(["--help"])
 
     exit_status = int(exc.value.code) if exc.value.code is not None else 0
     assert exit_status == 0
@@ -25,7 +27,7 @@ def test_parse_args_help(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_configure_logging_plain(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the plain logging configuration works."""
-    ircstream.configure_logging("plain")
+    ircstream.main.configure_logging("plain")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a test log")
@@ -34,8 +36,8 @@ def test_configure_logging_plain(caplog: pytest.LogCaptureFixture) -> None:
 
 def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the console logging configuration works."""
-    ircstream.configure_logging("plain")  # needed to override the default noop config in testing
-    ircstream.configure_logging("console")
+    ircstream.main.configure_logging("plain")  # needed to override the default noop config in testing
+    ircstream.main.configure_logging("console")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a test log")
@@ -44,7 +46,7 @@ def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
 
 def test_configure_logging_json(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the json logging configuration works."""
-    ircstream.configure_logging("json")
+    ircstream.main.configure_logging("json")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a json log", key="value")
@@ -57,7 +59,7 @@ def test_configure_logging_json(caplog: pytest.LogCaptureFixture) -> None:
 def test_configure_logging_invalid() -> None:
     """Test that an invalid logging configuration does not work."""
     with pytest.raises(ValueError, match="Invalid logging format"):
-        ircstream.configure_logging("invalid")
+        ircstream.main.configure_logging("invalid")
 
 
 def test_main(tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture) -> None:
@@ -72,21 +74,21 @@ def test_main(tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture) -> None:
     args = ("--config", str(tmp_config))
 
     # regular start; ensure that the intended servers are being run
-    with patch.object(ircstream.IRCServer, "serve", autospec=True) as mocked_irc_serve:
-        with patch.object(ircstream.RC2UDPServer, "serve", autospec=True) as mocked_rc2udp_serve:
-            ircstream.main(args)
+    with patch.object(IRCServer, "serve", autospec=True) as mocked_irc_serve:
+        with patch.object(RC2UDPServer, "serve", autospec=True) as mocked_rc2udp_serve:
+            ircstream.run(args)
             mocked_irc_serve.assert_awaited()
             mocked_rc2udp_serve.assert_awaited()
 
     # ensure the Ctrl+C handler works and does not raise any exceptions
-    with patch.object(ircstream.IRCServer, "serve", side_effect=KeyboardInterrupt):
-        ircstream.main(args)  # does not raise an exception
+    with patch.object(IRCServer, "serve", side_effect=KeyboardInterrupt):
+        ircstream.run(args)  # does not raise an exception
 
     # ensure that OS errors (e.g. if the socket is bound already) are handled
-    with patch.object(ircstream.IRCServer, "serve", side_effect=OSError(98, "Address already in use")):
+    with patch.object(IRCServer, "serve", side_effect=OSError(98, "Address already in use")):
         caplog.clear()
         with pytest.raises(SystemExit) as exc:
-            ircstream.main(args)  # does not raise an exception
+            ircstream.run(args)  # does not raise an exception
 
         exit_status = int(exc.value.code) if exc.value.code is not None else 0
 
@@ -100,7 +102,7 @@ def test_main_config_nonexistent(caplog: pytest.LogCaptureFixture) -> None:
 
     caplog.clear()
     with pytest.raises(SystemExit) as exc:
-        ircstream.main(args)
+        ircstream.run(args)
 
     exit_status = int(exc.value.code) if exc.value.code is not None else 0
     assert exit_status < 0
@@ -120,7 +122,7 @@ def test_main_config_invalid(
 
     caplog.clear()
     with pytest.raises(SystemExit) as exc:
-        ircstream.main(args)
+        ircstream.run(args)
 
     exit_status = int(exc.value.code) if exc.value.code is not None else 0
     assert exit_status < 0
@@ -137,8 +139,8 @@ def test_main_section_no_optional(tmp_path: pathlib.Path) -> None:
     )
     args = ("--config", str(tmp_config))
 
-    with patch.object(ircstream.IRCServer, "serve", autospec=True) as mocked_irc_serve:
-        with patch.object(ircstream.RC2UDPServer, "serve", autospec=True) as mocked_rc2udp_serve:
-            ircstream.main(args)
+    with patch.object(IRCServer, "serve", autospec=True) as mocked_irc_serve:
+        with patch.object(RC2UDPServer, "serve", autospec=True) as mocked_rc2udp_serve:
+            ircstream.run(args)
             mocked_irc_serve.assert_awaited()
             mocked_rc2udp_serve.assert_not_awaited()

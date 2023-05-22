@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-import ircstream
+from ircstream.ircserver import IRCClient, IRCServer
 
 pytestmark = pytest.mark.asyncio
 
@@ -51,7 +51,7 @@ class BareClient:
 
 
 @pytest.fixture(name="clientsock")
-async def clientsock_fixture(ircserver: ircstream.IRCServer) -> AsyncGenerator[BareClient, None]:
+async def clientsock_fixture(ircserver: IRCServer) -> AsyncGenerator[BareClient, None]:
     """Return an instance of our fake/raw IRC client."""
     client = BareClient()
     await client.connect(ircserver.address, ircserver.port)
@@ -64,7 +64,7 @@ async def test_premature_close(clientsock: BareClient) -> None:
     clientsock.close()
 
 
-async def test_ping_timeout(ircserver_short_timeout: ircstream.IRCServer, clientsock: BareClient) -> None:
+async def test_ping_timeout(ircserver_short_timeout: IRCServer, clientsock: BareClient) -> None:
     """Test a PING timeout condition."""
     # wait at least until the ping timeout interval
     await asyncio.sleep(ircserver_short_timeout.client_timeout)
@@ -113,7 +113,7 @@ async def test_erroneous(clientsock: BareClient) -> None:
     assert data == []
 
 
-async def test_unicodeerror(ircserver: ircstream.IRCServer, clientsock: BareClient) -> None:
+async def test_unicodeerror(ircserver: IRCServer, clientsock: BareClient) -> None:
     """Test for UnicodeError handling in both directions."""
     clientsock.write(b"USER one two three four\n")
     clientsock.write(b"NICK nick\n")
@@ -136,7 +136,7 @@ async def test_unicodeerror(ircserver: ircstream.IRCServer, clientsock: BareClie
     assert data == []
 
 
-async def test_broadcast_failure(clientsock: BareClient, ircserver: ircstream.IRCServer) -> None:
+async def test_broadcast_failure(clientsock: BareClient, ircserver: IRCServer) -> None:
     """Test that exceptions in the broadcast() method are handled."""
     # login to the client (normal)
     clientsock.write(b"USER one two three four\n")
@@ -151,7 +151,7 @@ async def test_broadcast_failure(clientsock: BareClient, ircserver: ircstream.IR
     assert any(b"JOIN #channel" in response for response in data)
 
     # ...and now actually test
-    with patch.object(ircstream.IRCClient, "send", side_effect=OSError("dummy")):
+    with patch.object(IRCClient, "send", side_effect=OSError("dummy")):
         await ircserver.broadcast("#channel", "should fail silently")
 
 
