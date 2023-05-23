@@ -30,6 +30,8 @@ from prometheus_client import Counter, Gauge
 
 from ._version import __version__
 
+logger = structlog.get_logger()
+
 
 class IRCNumeric(enum.Enum):
     """Base class for IRC numeric enums."""
@@ -200,13 +202,12 @@ class IRCClient:
     the client by dispatching them to the ``handle_`` methods.
     """
 
-    log = structlog.get_logger("ircstream.client")
-
     def __init__(self, server: IRCServer, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self.server = server
         self.reader = reader
         self.writer = writer
 
+        self.log = logger.new()
         self.signon = datetime.datetime.now(tz=datetime.timezone.utc)
         self.last_heard = self.signon
         self.ping_sent = False
@@ -224,7 +225,7 @@ class IRCClient:
         if self.host.startswith("::ffff:"):
             self.host = self.host[len("::ffff:") :]
 
-        self.log.new(ip=self.host, port=self.port)
+        self.log = self.log.bind(ip=self.host, port=self.port)
         self.log.info("Client connected")
         self.server.metrics["clients"].inc()
         self._periodic_ping_task = asyncio.create_task(self._periodic_ping())

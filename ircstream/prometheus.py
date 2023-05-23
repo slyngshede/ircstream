@@ -21,11 +21,12 @@ import socket
 import prometheus_client
 import structlog
 
+logger = structlog.get_logger()
+
 
 class PrometheusServer(http.server.ThreadingHTTPServer):
     """A Prometheus HTTP server."""
 
-    log = structlog.get_logger("ircstream.prometheus")
     daemon_threads = True
     allow_reuse_address = True
 
@@ -41,7 +42,7 @@ class PrometheusServer(http.server.ThreadingHTTPServer):
         super().__init__((listen_address, listen_port), prometheus_client.MetricsHandler.factory(registry))
         # update address/port based on what bind() returned
         self.address, self.port = str(self.server_address[0]), self.server_address[1]
-        self.log.info("Listening for Prometheus HTTP", listen_address=self.address, listen_port=self.port)
+        logger.info("Listening for Prometheus HTTP", listen_address=self.address, listen_port=self.port)
 
     def server_bind(self) -> None:
         """Bind to an IP address.

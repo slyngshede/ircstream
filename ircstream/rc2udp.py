@@ -22,11 +22,11 @@ if TYPE_CHECKING:
 
     from .ircserver import IRCServer
 
+logger = structlog.get_logger()
+
 
 class RC2UDPHandler(asyncio.Protocol):
     """A handler implementing the RC2UDP protocol, as used by MediaWiki."""
-
-    log = structlog.get_logger("ircstream.rc2udp")
 
     def __init__(self, server: RC2UDPServer) -> None:
         self.server = server
@@ -43,7 +43,7 @@ class RC2UDPHandler(asyncio.Protocol):
             self.server.ircserver.metrics["errors"].labels("rc2udp-parsing").inc()
             return
 
-        self.log.debug("Broadcasting message", channel=channel, message=text)
+        logger.debug("Broadcasting message", channel=channel, message=text)
         task = asyncio.create_task(self.server.ircserver.broadcast(channel, text))
         self.running_tasks.add(task)
         task.add_done_callback(self.running_tasks.discard)
@@ -66,4 +66,4 @@ class RC2UDPServer:  # pylint: disable=too-few-public-methods
         transport, _ = await loop.create_datagram_endpoint(lambda: RC2UDPHandler(self), local_addr=local_addr)
         local_addr = transport.get_extra_info("sockname")[:2]
         self.address, self.port = local_addr  # update address/port based on what bind() returned
-        self.log.info("Listening for RC2UDP broadcast", listen_address=self.address, listen_port=self.port)
+        logger.info("Listening for RC2UDP broadcast", listen_address=self.address, listen_port=self.port)

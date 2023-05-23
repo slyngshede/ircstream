@@ -29,6 +29,8 @@ from .ircserver import IRCServer
 from .prometheus import PrometheusServer
 from .rc2udp import RC2UDPServer
 
+logger = structlog.get_logger()
+
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     """Parse and return the parsed command line arguments."""
@@ -83,7 +85,6 @@ def configure_logging(log_format: str = "plain") -> None:
 
 async def start_servers(config: configparser.ConfigParser) -> None:
     """Start all servers in asyncio tasks or threads and then busy-loop."""
-    log = structlog.get_logger("ircstream.main")
     loop = asyncio.get_running_loop()
 
     try:
@@ -92,14 +93,14 @@ async def start_servers(config: configparser.ConfigParser) -> None:
             irc_coro = ircserver.serve()
             irc_task = asyncio.create_task(irc_coro)
         else:
-            log.critical('Invalid configuration, missing section "irc"')
+            logger.critical('Invalid configuration, missing section "irc"')
             raise SystemExit(-1)
 
         if "rc2udp" in config:
             rc2udp_coro = RC2UDPServer(config["rc2udp"], ircserver).serve()
             rc2udp_task = asyncio.create_task(rc2udp_coro)  # noqa: F841 pylint: disable=unused-variable
         else:
-            log.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
+            logger.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
         if "prometheus" in config:
             prom_server = PrometheusServer(config["prometheus"], ircserver.metrics_registry)
@@ -108,7 +109,7 @@ async def start_servers(config: configparser.ConfigParser) -> None:
 
         await asyncio.wait_for(irc_task, timeout=None)  # run forever
     except OSError as exc:
-        log.critical(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
+        logger.critical(f"System error: {exc.strerror}", errno=errno.errorcode[exc.errno])
         raise SystemExit(-2) from exc
 
 
@@ -119,19 +120,18 @@ def run(argv: Sequence[str] | None = None) -> None:
     configure_logging(options.log_format)
     # only set e.g. INFO or DEBUG for our own loggers
     structlog.get_logger("ircstream").setLevel(options.log_level)
-    log = structlog.get_logger("ircstream.main")
-    log.info("Starting IRCStream", config_file=str(options.config_file), version=__version__)
+    logger.info("Starting IRCStream", config_file=str(options.config_file), version=__version__)
 
     config = configparser.ConfigParser(strict=True)
     try:
         with options.config_file.open(encoding="utf-8") as config_fh:
             config.read_file(config_fh)
     except OSError as exc:
-        log.critical(f"Cannot open configuration file: {exc.strerror}", errno=errno.errorcode[exc.errno])
+        logger.critical(f"Cannot open configuration file: {exc.strerror}", errno=errno.errorcode[exc.errno])
         raise SystemExit(-1) from exc
     except configparser.Error as exc:
         msg = repr(exc).replace("\n", " ")  # configparser exceptions sometimes include newlines
-        log.critical(f"Invalid configuration, {msg}")
+        logger.critical(f"Invalid configuration, {msg}")
         raise SystemExit(-1) from exc
 
     try:
