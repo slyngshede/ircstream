@@ -7,7 +7,6 @@ import multiprocessing
 import multiprocessing.synchronize
 import pathlib
 import socket
-import threading
 import time
 from typing import Any
 
@@ -60,8 +59,8 @@ class IRCMessageCounter(irc.client.SimpleIRCClient):  # type: ignore
 
 
 @pytest.fixture(name="main")
-def fixture_main(tmp_path: pathlib.Path) -> threading.Thread:
-    """Fixture for ircstream main(), running it in a thread."""
+def fixture_main(tmp_path: pathlib.Path) -> multiprocessing.Process:
+    """Fixture for ircstream main(), running it in a Process."""
     # test a semi-stock config, with default ports etc.
     tmp_config = tmp_path / "ircstream-integration.conf"
     tmp_config.write_text(
@@ -84,7 +83,7 @@ def fixture_main(tmp_path: pathlib.Path) -> threading.Thread:
     )
     args = ("--config", str(tmp_config))
 
-    main = threading.Thread(target=ircstream.run, args=(args,), daemon=True)
+    main = multiprocessing.Process(target=ircstream.run, args=(args,), daemon=True)
     main.start()
     time.sleep(0.1)
     if not main.is_alive():
