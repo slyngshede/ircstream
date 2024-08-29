@@ -12,8 +12,6 @@ from .ircclient import IRCClientAio
 if TYPE_CHECKING:
     from ircstream.ircserver import IRCServer
 
-pytestmark = pytest.mark.asyncio
-
 BOTNAME = "testsuite-bot"
 
 

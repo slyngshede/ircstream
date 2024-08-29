@@ -10,8 +10,6 @@ import pytest
 
 from ircstream.rc2udp import RC2UDPServer
 
-pytestmark = pytest.mark.asyncio
-
 
 class MockIRCServer:
     """Mocks the IRCServer object.
