@@ -41,9 +41,9 @@ dependencies = [
 ]
 optional-dependencies.tests = [
     "coverage[toml]",
-    "pytest",
+    "pytest==7.*",
     "pytest-cov",
-    "pytest-asyncio",
+    "pytest-asyncio==0.21.0",
     "irc",
     "pyyaml",
 ]
