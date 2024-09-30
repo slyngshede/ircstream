@@ -1,8 +1,9 @@
-ircstream (0.12.0~dev) UNRELEASED; urgency=medium
+ircstream (0.12.0) unstable; urgency=medium
 
-  * New development release.
+  * New release.
+  * Bump Standards-Version to 4.7.0.
 
- -- Faidon Liambotis <paravoid@debian.org>  Mon, 22 May 2023 18:12:02 +0300
+ -- Faidon Liambotis <paravoid@debian.org>  Mon, 30 Sep 2024 13:51:05 +0300
 
 ircstream (0.11.0) unstable; urgency=medium
 
