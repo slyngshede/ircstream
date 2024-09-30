@@ -179,8 +179,7 @@ def test_out_of_the_box() -> None:
     assert prometheus_metric("ircstream_messages_total") == float(messages_total)
 
     # verify whether they were received by the clients
-    # type ignore because of https://github.com/python/typeshed/issues/8799
-    assert received_counter.value == client_count * message_count  # type: ignore[attr-defined]
+    assert received_counter.value == client_count * message_count
 
     # check again to verify no new channels were created and no clients were dropped
     assert prometheus_metric("ircstream_clients") == float(client_count)
