@@ -39,7 +39,7 @@ class RC2UDPHandler(asyncio.Protocol):
             channel, text = decoded.split("\t", maxsplit=1)
             channel = channel.strip()
             text = text.lstrip().replace("\r", "").replace("\n", "")
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             self.server.ircserver.metrics["errors"].labels("rc2udp-parsing").inc()
             return
 
@@ -49,7 +49,7 @@ class RC2UDPHandler(asyncio.Protocol):
         task.add_done_callback(self.running_tasks.discard)
 
 
-class RC2UDPServer:  # pylint: disable=too-few-public-methods
+class RC2UDPServer:
     """A server implementing the RC2UDP protocol, as used by MediaWiki."""
 
     log = structlog.get_logger("ircstream.rc2udp")

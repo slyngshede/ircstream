@@ -338,7 +338,7 @@ class IRCClient:
             await self.msg(exc.command, exc.params)
         except UnicodeDecodeError:
             return
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             self.server.metrics["errors"].labels("ise").inc()
             await self.msg("ERROR", f"Internal server error ({exc})")
             self.log.exception("Internal server error")
@@ -815,7 +815,7 @@ class IRCServer:
         for client in clients:
             try:
                 await client.msg("PRIVMSG", [target, msg], from_bot=True)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 self.metrics["errors"].labels("broadcast").inc()
                 self.log.debug("Unable to broadcast", exc_info=True)
                 continue  # ignore exceptions, to catch corner cases
