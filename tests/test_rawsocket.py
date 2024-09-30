@@ -69,7 +69,7 @@ async def test_ping_timeout(ircserver_short_timeout: IRCServer, clientsock: Bare
 
     # try another 5 times for a total of another interval
     ping_timedout = False
-    for _ in range(0, 5):
+    for _ in range(5):
         data = await clientsock.readline()
         if not data:
             continue

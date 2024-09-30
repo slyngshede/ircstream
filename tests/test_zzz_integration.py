@@ -137,7 +137,7 @@ def send_to_rc2udp(channel: str, count: int, message: str = "message") -> None:
     rawdata = f"{channel}\t{message}".encode()
 
     def send_in_process() -> None:
-        for _ in range(0, count):
+        for _ in range(count):
             sock.sendto(rawdata, (SERVER_IP, PORTS["rc2udp"]))
 
     proc = multiprocessing.Process(target=send_in_process)
@@ -165,7 +165,7 @@ def test_out_of_the_box() -> None:
     # connect a number of different clients
     assert prometheus_metric("ircstream_clients") == 0
     ircclients = []
-    for _ in range(0, client_count):
+    for _ in range(client_count):
         ircclient = spawn_client_process("#channel", received_counter)
         ircclients.append(ircclient)
     assert prometheus_metric("ircstream_clients") == float(client_count)

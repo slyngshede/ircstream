@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ircstream.ircserver import IRCServer
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_irctk(ircserver: IRCServer) -> None:
     """Test a simple conversation using irctk."""
     hostport = f"{ircserver.address}:{ircserver.port}"
