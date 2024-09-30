@@ -56,7 +56,6 @@ optional-dependencies.lint = [
     "ircstream[tests]",
     "validate-pyproject[all]==0.13",
     "ruff==0.6.8",
-    "black==23.3.0",
 ]
 optional-dependencies.dev = [
     "ircstream[tests]",
@@ -92,9 +91,6 @@ exclude_lines = [
 strict = true
 
 # linters
-[tool.black]
-line-length = 120
-
 [tool.isort]
 profile = "black"
 
@@ -132,6 +128,7 @@ lint.ignore = [
     "D202", # https://github.com/PyCQA/pydocstyle/issues/627
     "D203", # incompatible with D211
     "D213", # incompatible with D213
+    "ISC001", # incompatible with the ruff formatter
 ]
 
 [tool.ruff.lint.per-file-ignores]
