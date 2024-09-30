@@ -31,6 +31,9 @@ from .rc2udp import RC2UDPServer
 
 logger = structlog.get_logger()
 
+# holder for strong references to pending tasks; remove when the minimum CPython version is one with PR#121264
+background_tasks = set()
+
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     """Parse and return the parsed command line arguments."""
@@ -92,13 +95,17 @@ async def start_servers(config: configparser.ConfigParser) -> None:
             ircserver = IRCServer(config["irc"])
             irc_coro = ircserver.serve()
             irc_task = asyncio.create_task(irc_coro)
+            background_tasks.add(irc_task)
+            irc_task.add_done_callback(background_tasks.discard)
         else:
             logger.critical('Invalid configuration, missing section "irc"')
             raise SystemExit(-1)
 
         if "rc2udp" in config:
             rc2udp_coro = RC2UDPServer(config["rc2udp"], ircserver).serve()
-            rc2udp_task = asyncio.create_task(rc2udp_coro)  # noqa: F841 pylint: disable=unused-variable
+            rc2udp_task = asyncio.create_task(rc2udp_coro)
+            background_tasks.add(rc2udp_task)
+            rc2udp_task.add_done_callback(background_tasks.discard)
         else:
             logger.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
