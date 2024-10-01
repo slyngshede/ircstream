@@ -36,8 +36,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "prometheus_client>=0.9.0",
-    "structlog>=20.1.0",
+    "prometheus_client>=0.16.0",
+    "structlog>=22.3.0",
 ]
 optional-dependencies.tests = [
     "coverage[toml]",
