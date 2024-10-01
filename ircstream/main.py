@@ -69,13 +69,11 @@ def configure_logging(log_format: str, min_level: str) -> None:
     # This follows structlog's "most ambitious" approach: rendering using structlog-based formatters within logging
     processors: list[structlog.typing.Processor] = [
         structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         timestamper,
     ]
-
-    if log_format == "json":
-        processors = [structlog.stdlib.add_logger_name, *processors]
 
     structlog.configure(
         processors=[

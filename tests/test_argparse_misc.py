@@ -39,7 +39,7 @@ def test_configure_logging_plain(caplog: pytest.LogCaptureFixture) -> None:
         assert isinstance(rec.msg, dict)
         assert "this is a test log" == rec.msg["event"]
         fmted = root_formatter.format(rec)
-        assert fmted.endswith("this is a test log")
+        assert "this is a test log" in fmted
 
 
 def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
