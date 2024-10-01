@@ -10,7 +10,7 @@ version_scheme = "release-branch-semver"
 write_to = "ircstream/_version.py"
 
 [project]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 name = "ircstream"
 dynamic = ["version"]
 authors = [
