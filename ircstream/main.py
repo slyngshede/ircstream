@@ -26,8 +26,6 @@ import structlog
 
 from ._version import __version__
 from .ircserver import IRCServer
-from .prometheus import PrometheusServer
-from .rc2udp import RC2UDPServer
 
 logger = structlog.get_logger()
 
@@ -122,6 +120,8 @@ async def start_servers(config: configparser.ConfigParser) -> None:
             raise SystemExit(-1)
 
         if "rc2udp" in config:
+            from .rc2udp import RC2UDPServer
+
             rc2udp_coro = RC2UDPServer(config["rc2udp"], ircserver).serve()
             rc2udp_task = asyncio.create_task(rc2udp_coro)
             background_tasks.add(rc2udp_task)
@@ -130,6 +130,8 @@ async def start_servers(config: configparser.ConfigParser) -> None:
             logger.warning("RC2UDP is not enabled in the config; server usefulness may be limited")
 
         if "prometheus" in config:
+            from .prometheus import PrometheusServer
+
             prom_server = PrometheusServer(config["prometheus"], ircserver.metrics_registry)
             prom_server.socket.setblocking(False)
             loop.add_reader(prom_server.socket, prom_server.handle_request)
