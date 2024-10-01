@@ -82,8 +82,11 @@ class RecentChangeIRCFormatter:
     @property
     def should_skip(self) -> bool:
         """Return True if this message should be skipped."""
-        # skip RC_FLOW etc.
-        return self.msg["type"] not in ("edit", "new", "log", "external")
+        if "type" not in self.msg:
+            return True
+        if self.msg["type"] not in ("edit", "new", "log", "external"):
+            return True
+        return False
 
     @property
     def ircstr(self) -> str | None:
