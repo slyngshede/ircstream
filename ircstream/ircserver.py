@@ -210,7 +210,6 @@ class IRCClient:
         self.log = logger.new()
         self.signon = datetime.datetime.now(tz=datetime.timezone.utc)
         self.last_heard = self.signon
-        self.ping_sent = False
         self.user, self.realname, self.nick = "", "", ""
         self.channels: set[str] = set()
         self.host: str = ""
@@ -245,18 +244,18 @@ class IRCClient:
 
     async def _periodic_ping(self) -> None:
         while True:
-            await asyncio.sleep(self.server.client_timeout / 2)
-            timeout = self.server.client_timeout
+            await asyncio.sleep(self.server.client_timeout / 4)
+
             # if we haven't heard from the client in N seconds, disconnect
+            timeout = self.server.client_timeout
             delta = datetime.datetime.now(tz=datetime.timezone.utc) - self.last_heard
             if delta > datetime.timedelta(seconds=timeout):
                 await self.msg("ERROR", "Closing Link: (Ping timeout)")
                 await self.terminate()
 
-            # if it's N/2 seconds since the last PONG, send a PING
-            if delta > datetime.timedelta(seconds=timeout / 2) and not self.ping_sent and self.registered:
+            # otherwise, send a PING
+            if self.registered:
                 await self.msg("PING", self.server.servername)
-                self.ping_sent = True
 
     async def msg(self, command: str | IRCNumeric, params: list[str] | str, from_bot: bool = False) -> None:
         """Prepare and sends a response to the client.
@@ -547,7 +546,6 @@ class IRCClient:
     async def handle_pong(self, _: list[str]) -> None:
         """Handle client PONG responses to keep the connection alive."""
         self.last_heard = datetime.datetime.now(tz=datetime.timezone.utc)
-        self.ping_sent = False
 
     async def handle_join(self, params: list[str]) -> None:
         """Handle the JOIN command."""
@@ -753,7 +751,7 @@ class IRCServer:
 
         self.boot_time = datetime.datetime.now(tz=datetime.timezone.utc)
         self._channels: dict[str, set[IRCClient]] = {}
-        self.client_timeout = 120
+        self.client_timeout = 180
 
         # set up a few Prometheus metrics
         registry = prometheus_client.CollectorRegistry()
