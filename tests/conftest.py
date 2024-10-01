@@ -18,8 +18,8 @@ def _fixture_configure_structlog() -> None:
     """Fixture to configure structlog. Currently just silences it entirely."""
 
     def dummy_processor(
-        logger: logging.Logger, name: str, event_dict: structlog.types.EventDict
-    ) -> structlog.types.EventDict:
+        logger: logging.Logger, name: str, event_dict: structlog.typing.EventDict
+    ) -> structlog.typing.EventDict:
         raise structlog.DropEvent
 
     structlog.configure(processors=[dummy_processor])

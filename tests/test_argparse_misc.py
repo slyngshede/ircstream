@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import pathlib
 from unittest.mock import patch
 
@@ -27,31 +28,45 @@ def test_parse_args_help(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_configure_logging_plain(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the plain logging configuration works."""
-    ircstream.main.configure_logging("plain")
+    ircstream.main.configure_logging("plain", "INFO")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a test log")
-    assert ["this is a test log"] == [rec.message for rec in caplog.records]
+
+    root_formatter = logging.getLogger().handlers[-1].formatter
+    assert type(root_formatter) is structlog.stdlib.ProcessorFormatter
+    for rec in caplog.records:
+        assert isinstance(rec.msg, dict)
+        assert "this is a test log" == rec.msg["event"]
+        fmted = root_formatter.format(rec)
+        assert fmted.endswith("this is a test log")
 
 
 def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the console logging configuration works."""
-    ircstream.main.configure_logging("plain")  # needed to override the default noop config in testing
-    ircstream.main.configure_logging("console")
+    ircstream.main.configure_logging("console", "INFO")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a test log")
-    assert ["[warning  ] this is a test log"] == [rec.message for rec in caplog.records]
+    root_formatter = logging.getLogger().handlers[-1].formatter
+    assert type(root_formatter) is structlog.stdlib.ProcessorFormatter
+    for rec in caplog.records:
+        assert isinstance(rec.msg, dict)
+        assert "this is a test log" == rec.msg["event"]
+        fmted = root_formatter.format(rec)
+        assert "this is a test log" in fmted  # colored with ANSI etc.
 
 
 def test_configure_logging_json(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the json logging configuration works."""
-    ircstream.main.configure_logging("json")
+    ircstream.main.configure_logging("json", "INFO")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a json log", key="value")
 
-    parsed_logs = [json.loads(rec.message) for rec in caplog.records]
+    root_formatter = logging.getLogger().handlers[-1].formatter
+    assert type(root_formatter) is structlog.stdlib.ProcessorFormatter
+    parsed_logs = [json.loads(root_formatter.format(rec)) for rec in caplog.records]
     assert ["this is a json log"] == [rec["event"] for rec in parsed_logs]
     assert ["value"] == [rec["key"] for rec in parsed_logs]
 
@@ -59,7 +74,7 @@ def test_configure_logging_json(caplog: pytest.LogCaptureFixture) -> None:
 def test_configure_logging_invalid() -> None:
     """Test that an invalid logging configuration does not work."""
     with pytest.raises(ValueError, match="Invalid logging format"):
-        ircstream.main.configure_logging("invalid")
+        ircstream.main.configure_logging("invalid", "INFO")
 
 
 def test_main(tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture) -> None:
