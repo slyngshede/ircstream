@@ -52,8 +52,6 @@ class RC2UDPHandler(asyncio.Protocol):
 class RC2UDPServer:
     """A server implementing the RC2UDP protocol, as used by MediaWiki."""
 
-    log = structlog.get_logger("ircstream.rc2udp")
-
     def __init__(self, config: configparser.SectionProxy, ircserver: IRCServer) -> None:
         self.ircserver = ircserver
         self.address = config.get("listen_address", fallback="::")
