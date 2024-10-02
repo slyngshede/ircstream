@@ -1407,6 +1407,13 @@ values:
         conflict: true
 
     -
+        name: RPL_WHOISSERVICE
+        numeric: "309"
+        origin: oftc-hybrid
+        comment: Reply to WHOIS - Client is a Network Service
+        conflict: true
+
+    -
         name: RPL_WHOISSVCMSG
         numeric: "310"
         origin: Bahamut
@@ -1979,9 +1986,9 @@ values:
         name: RPL_BANLIST
         numeric: "367"
         origin: RFC1459
-        format: "<client> <channel> <banid> [<time_left> :<reason>]"
+        format: "<client> <channel> <banid> [[<setter> <time_left>|<time_left> :<reason>]]"
         comment: >
-            A ban-list item (See RFC); <time left> and <reason> are
+            A ban-list item (See RFC); <setter>, <time left> and <reason> are
             additions used by various servers.
 
     -
@@ -3688,6 +3695,13 @@ values:
         conflict: true
 
     -
+        name: RPL_WHOISASN
+        numeric: "569"
+        origin: "Used by InspIRCd's m_asn module."
+        format: "<client> <nick> 64496 :is connecting from AS64496 [Example Corp]"
+        comment: Used for displaying ASN info to IRCOps.
+
+    -
         name: RPL_REAWAY
         numeric: "597"
         origin: Unreal
@@ -4139,14 +4153,14 @@ values:
         name: RPL_ETRACEFULL
         numeric: "708"
         origin: RatBox
-        format: "<?> <?> <?> <?> <?> <?> <?> :<?>"
+        format: "<client> <Oper|User> <class> <nick> <username> <host> <ip> :<capabilities>"
         comment: Output from 'extended' trace
 
     -
         name: RPL_ETRACE
         numeric: "709"
         origin: RatBox
-        format: "<?> <?> <?> <?> <?> <?> :<?>"
+        format: "<client> <Oper|User> <?> <nick> <username> <host> :<ip>"
         comment: Output from 'extended' trace
 
     -
