@@ -119,6 +119,29 @@ async def test_whowas(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
 
 
 @pytest.mark.usefixtures("ircserver")
+async def test_userhost(ircserver: IRCServer, ircclient: IRCClientAio) -> None:
+    """Test the USERHOST command."""
+    ircclient.connection.userhost([])
+    assert await ircclient.expect("needmoreparams")
+
+    ircclient.connection.userhost(["nonexistent"])
+    assert await ircclient.expect("userhost", arguments=[""])
+
+    bot_userhost = f"{ircserver.botname}*=+{ircserver.botname}@{ircserver.servername}"
+    ircclient.connection.userhost([ircserver.botname])
+    assert await ircclient.expect("userhost", arguments=[bot_userhost])
+
+    client_userhost = f"{BOTNAME}=+{BOTNAME}@{ircserver.address}"  # address is 127.0.0.1 or ::1
+    ircclient.connection.userhost([BOTNAME])
+    assert await ircclient.expect("userhost", arguments=[client_userhost])
+
+    # most advanced check: both nicknames, in opposite order, one of them twice, nonexistent in the middle
+    # ircclient joins with comma with is not spec-compliant; join with spaces here manually
+    ircclient.connection.userhost([" ".join([BOTNAME, "nonexistent", ircserver.botname, BOTNAME])])
+    assert await ircclient.expect("userhost", arguments=[" ".join([client_userhost, bot_userhost, client_userhost])])
+
+
+@pytest.mark.usefixtures("ircserver")
 async def test_nick(ircclient: IRCClientAio) -> None:
     """Test the NICK command."""
     ircclient.connection.nick("")

@@ -55,6 +55,7 @@ class RPL(IRCNumeric):
     MYINFO = 4
     ISUPPORT = 5
     UMODEIS = 221
+    USERHOST = 302
     WHOISUSER = 311
     WHOISSERVER = 312
     ENDOFWHO = 315
@@ -472,6 +473,29 @@ class IRCClient:
             # existing registration, but changing nicks
             await self.msg("NICK", [nick])
             self.nick = nick
+
+    async def handle_userhost(self, params: list[str]) -> None:
+        """Handle the USERHOST command."""
+        if not params:
+            raise IRCError(ERR.NEEDMOREPARAMS, "Not enough parameters")
+
+        # handle up to five nicknames per spec; silently truncate the rest
+        params = params[:5]
+
+        def userhost(nick: str, user: str, host: str, *, op: bool = False, away: bool = False) -> str:
+            isop = "*" if op else ""
+            isaway = "+" if not away else "-"
+            return nick + isop + "=" + isaway + user + "@" + host
+
+        # respond in the same order as requested; allow duplicates
+        userhosts = []
+        for requested_nickname in params:
+            if requested_nickname == self.nick:
+                userhosts.append(userhost(self.nick, self.user, self.host))
+            elif requested_nickname == self.server.botname:
+                userhosts.append(userhost(self.server.botname, self.server.botname, self.server.servername, op=True))
+
+        await self.msg(RPL.USERHOST, " ".join(userhosts))
 
     async def handle_user(self, params: list[str]) -> None:
         """Handle the USER command which identifies the user to the server."""
