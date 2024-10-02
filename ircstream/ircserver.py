@@ -512,7 +512,7 @@ class IRCClient:
                 "NICKLEN=30",
                 "CHANNELLEN=50",
                 "CHANTYPES=#",
-                "PREFIX=",
+                "PREFIX=(o)@",
                 "SAFELIST",
                 "are available on this server",
             ],
