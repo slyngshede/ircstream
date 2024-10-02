@@ -46,14 +46,14 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--config-file", "-c", type=pathlib.Path, default=cfg_dflt, help="Path to configuration file")
 
     log_levels = ("DEBUG", "INFO", "WARNING", "ERROR")
-    parser.add_argument("--log-level", default="INFO", choices=log_levels, type=str.upper, help="Log level")
+    parser.add_argument("--log-level", choices=log_levels, type=str.upper, help="Log level (overrides config)")
     log_formats = ("plain", "console", "json")
     log_dflt = "console" if sys.stdout.isatty() else "plain"
     parser.add_argument("--log-format", default=log_dflt, choices=log_formats, help="Log format")
     return parser.parse_args(argv)
 
 
-def configure_logging(log_format: str, min_level: str) -> None:
+def configure_logging(log_format: str) -> None:
     """Configure logging parameters."""
     renderer: structlog.typing.Processor
     if log_format == "plain" or log_format == "console":
@@ -99,7 +99,21 @@ def configure_logging(log_format: str, min_level: str) -> None:
     handler.setFormatter(formatter)
     root_logger = logging.getLogger()
     root_logger.addHandler(handler)
-    root_logger.setLevel(min_level)
+    # default level, only for events emitted before the config is parsed
+    root_logger.setLevel(logging.WARN)
+
+
+def configure_log_levels(override_level: str | int | None, config: configparser.SectionProxy | None = None) -> None:
+    """Configure logging levels, using the config file and an override, typically given by a CLI argument."""
+    if config:
+        for key, level in config.items():
+            this_logger_name = key if key != "root" else None
+            this_logger = logging.getLogger(this_logger_name)
+            this_logger.setLevel(level)
+
+    if override_level:
+        # set the level for the entire package
+        logging.getLogger("ircstream").setLevel(override_level)
 
 
 async def start_servers(config: configparser.ConfigParser) -> None:
@@ -144,7 +158,8 @@ def run(argv: Sequence[str] | None = None) -> None:
     """Entry point."""
     options = parse_args(argv)
 
-    configure_logging(options.log_format, options.log_level)
+    configure_logging(options.log_format)
+    configure_log_levels(options.log_level or logging.INFO)
     logger.info("Starting IRCStream", config_file=str(options.config_file), version=__version__)
 
     config = configparser.ConfigParser(strict=True)
@@ -158,6 +173,10 @@ def run(argv: Sequence[str] | None = None) -> None:
         msg = repr(exc).replace("\n", " ")  # configparser exceptions sometimes include newlines
         logger.critical(f"Invalid configuration, {msg}")
         raise SystemExit(-1) from exc
+
+    # now that we've read the config, configure with the levels defined there (but CLI option takes precedence)
+    if "loggers" in config:
+        configure_log_levels(options.log_level, config["loggers"])
 
     try:
         asyncio.run(start_servers(config))

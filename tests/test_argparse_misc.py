@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import configparser
 import json
 import logging
 import pathlib
@@ -46,7 +47,7 @@ def test_parse_args_help(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_configure_logging_plain(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the plain logging configuration works."""
-    ircstream.main.configure_logging("plain", "INFO")
+    ircstream.main.configure_logging("plain")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a test log")
@@ -58,7 +59,7 @@ def test_configure_logging_plain(caplog: pytest.LogCaptureFixture) -> None:
 
 def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the console logging configuration works."""
-    ircstream.main.configure_logging("console", "INFO")
+    ircstream.main.configure_logging("console")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a test log")
@@ -70,22 +71,81 @@ def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
 
 def test_configure_logging_json(caplog: pytest.LogCaptureFixture) -> None:
     """Test that the json logging configuration works."""
-    ircstream.main.configure_logging("json", "INFO")
+    ircstream.main.configure_logging("json")
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a json log", key="value")
 
-    root_formatter = logging.getLogger().handlers[-1].formatter
-    assert type(root_formatter) is structlog.stdlib.ProcessorFormatter
-    parsed_logs = [json.loads(root_formatter.format(rec)) for rec in caplog.records]
-    assert ["this is a json log"] == [rec["event"] for rec in parsed_logs]
-    assert ["value"] == [rec["key"] for rec in parsed_logs]
+    capevents, caplogs = parse_caplog(caplog)
+    parsed_logs = [json.loads(log) for log in caplogs]
+    assert all("this is a json log" in parsed["event"] for parsed in parsed_logs)
+    assert all("value" == parsed["key"] for parsed in parsed_logs)
+
+
+def test_default_logging_levels(caplog: pytest.LogCaptureFixture) -> None:
+    """Test that the default logging level configuration works."""
+    ircstream.main.configure_logging("plain")
+    ircstream.main.configure_log_levels(logging.INFO)
+    caplog.clear()
+    for name in ("testlogger", "ircstream.test"):
+        logger = structlog.get_logger(name)
+        for level in ("info", "warning", "debug"):
+            getattr(logger, level)(f"{level} log from {name}")
+
+    capevents, _ = parse_caplog(caplog)
+    # * root, and thus testlogger, is at WARN
+    assert "debug log from testlogger" not in capevents
+    assert "info log from testlogger" not in capevents
+    assert "warning log from testlogger" in capevents
+    # * ircstream, and thus ircstream.test, is at INFO, per config above
+    assert "debug log from ircstream.test" not in capevents
+    assert "info log from ircstream.test" in capevents
+    assert "warning log from ircstream.test" in capevents
+
+
+def test_config_logging_levels(caplog: pytest.LogCaptureFixture) -> None:
+    """Test that the config-file provided logging level configuration works."""
+    config = configparser.ConfigParser()
+    config.read_string(
+        """
+        [loggers]
+        root = ERROR
+        ircstream.debug = DEBUG
+        ircstream.warning = WARNING
+        """
+    )
+    ircstream.main.configure_logging("plain")
+    ircstream.main.configure_log_levels(logging.INFO, config["loggers"])
+
+    caplog.clear()
+    for name in ("testlogger", "ircstream.default", "ircstream.debug", "ircstream.warning"):
+        logger = structlog.get_logger(name)
+        for level in ("info", "warning", "debug"):
+            getattr(logger, level)(f"{level} log from {name}")
+
+    capevents, _ = parse_caplog(caplog)
+    # * root, and thus testlogger, is now at ERROR
+    assert "debug log from testlogger" not in capevents
+    assert "info log from testlogger" not in capevents
+    assert "warning log from testlogger" not in capevents
+    # * ircstream, and thus ircstream.default, is at INFO, per config above
+    assert "debug log from ircstream.default" not in capevents
+    assert "info log from ircstream.default" in capevents
+    assert "warning log from ircstream.default" in capevents
+    # * irc.debug is at DEBUG
+    assert "debug log from ircstream.debug" in capevents
+    assert "info log from ircstream.debug" in capevents
+    assert "warning log from ircstream.debug" in capevents
+    # * irc.debug is at WARNING
+    assert "debug log from ircstream.warning" not in capevents
+    assert "info log from ircstream.warning" not in capevents
+    assert "warning log from ircstream.warning" in capevents
 
 
 def test_configure_logging_invalid() -> None:
     """Test that an invalid logging configuration does not work."""
     with pytest.raises(ValueError, match="Invalid logging format"):
-        ircstream.main.configure_logging("invalid", "INFO")
+        ircstream.main.configure_logging("invalid")
 
 
 def test_main(tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture) -> None:
@@ -95,6 +155,8 @@ def test_main(tmp_path: pathlib.Path, caplog: pytest.LogCaptureFixture) -> None:
         """
         [irc]
         [rc2udp]
+        [prometheus]
+        [loggers]
         """
     )
     args = ("--config", str(tmp_config))
