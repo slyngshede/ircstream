@@ -15,6 +15,24 @@ from ircstream.ircserver import IRCServer
 from ircstream.rc2udp import RC2UDPServer
 
 
+def parse_caplog(caplog: pytest.LogCaptureFixture) -> tuple[list[str], list[str]]:
+    """Parse pytest's caplog, returning a list of logs pre-format and post-format.
+
+    The formatted logs are formatted using our custom (structlog) formatter.
+    """
+    root_formatter = logging.getLogger().handlers[-1].formatter
+    assert type(root_formatter) is structlog.stdlib.ProcessorFormatter
+
+    capevents, caplogs = [], []
+    for rec in caplog.records:
+        assert isinstance(rec.msg, dict)
+        assert "event" in rec.msg
+        capevents.append(rec.msg["event"])
+        caplogs.append(root_formatter.format(rec))
+
+    return (capevents, caplogs)
+
+
 def test_parse_args_help(capsys: pytest.CaptureFixture[str]) -> None:
     """Test whether --help returns usage and exits."""
     with pytest.raises(SystemExit) as exc:
@@ -33,13 +51,9 @@ def test_configure_logging_plain(caplog: pytest.LogCaptureFixture) -> None:
     caplog.clear()
     log.warning("this is a test log")
 
-    root_formatter = logging.getLogger().handlers[-1].formatter
-    assert type(root_formatter) is structlog.stdlib.ProcessorFormatter
-    for rec in caplog.records:
-        assert isinstance(rec.msg, dict)
-        assert "this is a test log" == rec.msg["event"]
-        fmted = root_formatter.format(rec)
-        assert "this is a test log" in fmted
+    capevents, caplogs = parse_caplog(caplog)
+    assert ["this is a test log"] == capevents
+    assert all("this is a test log" in c for c in caplogs)
 
 
 def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
@@ -48,13 +62,10 @@ def test_configure_logging_console(caplog: pytest.LogCaptureFixture) -> None:
     log = structlog.get_logger("testlogger")
     caplog.clear()
     log.warning("this is a test log")
-    root_formatter = logging.getLogger().handlers[-1].formatter
-    assert type(root_formatter) is structlog.stdlib.ProcessorFormatter
-    for rec in caplog.records:
-        assert isinstance(rec.msg, dict)
-        assert "this is a test log" == rec.msg["event"]
-        fmted = root_formatter.format(rec)
-        assert "this is a test log" in fmted  # colored with ANSI etc.
+
+    capevents, caplogs = parse_caplog(caplog)
+    assert ["this is a test log"] == capevents
+    assert all("this is a test log" in c for c in caplogs)
 
 
 def test_configure_logging_json(caplog: pytest.LogCaptureFixture) -> None:
