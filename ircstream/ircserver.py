@@ -764,8 +764,6 @@ class IRCClient:
 class IRCServer:
     """A server class representing an IRC server."""
 
-    log = structlog.get_logger("ircstream.irc")
-
     def __init__(self, config: configparser.SectionProxy) -> None:
         self.servername = config.get("servername", "irc.example.org")
         self.botname = config.get("botname", "example-bot")
@@ -807,7 +805,7 @@ class IRCServer:
         if server.sockets:
             local_addr = server.sockets[0].getsockname()[:2]
             self.address, self.port = local_addr  # update address/port based on what bind() returned
-        self.log.info("Listening for IRC clients", listen_address=self.address, listen_port=self.port)
+        logger.info("Listening for IRC clients", listen_address=self.address, listen_port=self.port)
         await server.serve_forever()
 
     def subscribe(self, channel: str, client: IRCClient) -> None:
@@ -839,6 +837,6 @@ class IRCServer:
                 await client.msg("PRIVMSG", [target, msg], from_bot=True)
             except Exception:
                 self.metrics["errors"].labels("broadcast").inc()
-                self.log.debug("Unable to broadcast", exc_info=True)
+                logger.debug("Unable to broadcast", exc_info=True)
                 continue  # ignore exceptions, to catch corner cases
         self.metrics["messages"].inc()
