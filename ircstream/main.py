@@ -56,10 +56,12 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 def configure_logging(log_format: str) -> None:
     """Configure logging parameters."""
     renderer: structlog.typing.Processor
-    if log_format == "plain" or log_format == "console":
+    if log_format == "plain":
+        timestamper = None
+        renderer = structlog.dev.ConsoleRenderer(colors=False)
+    elif log_format == "console":
         timestamper = structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S", utc=False)
-        enable_colors = log_format == "console"
-        renderer = structlog.dev.ConsoleRenderer(colors=enable_colors)
+        renderer = structlog.dev.ConsoleRenderer(colors=True)
     elif log_format == "json":
         timestamper = structlog.processors.TimeStamper(fmt="iso")
         renderer = structlog.processors.JSONRenderer(sort_keys=True)
@@ -72,8 +74,10 @@ def configure_logging(log_format: str) -> None:
         structlog.stdlib.add_logger_name,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
-        timestamper,
     ]
+
+    if timestamper:
+        processors.append(timestamper)
 
     structlog.configure(
         processors=[
