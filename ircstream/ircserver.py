@@ -637,7 +637,10 @@ class IRCClient:
 
         nicklist: Iterable[str]
         if channel in self.channels:
-            nicklist = (self.nick, "@" + self.server.botname)
+            nicklist = [
+                "@" + self.server.botname,
+            ]
+            nicklist.extend([client.nick for client in self.server.clients(channel)])
         else:
             nicklist = ("@" + self.server.botname,)
 
@@ -815,6 +818,10 @@ class IRCServer:
     def unsubscribe(self, channel: str, client: IRCClient) -> None:
         """Unsubscribe a client from broadcasts for a particular channel."""
         self._channels[channel].remove(client)
+
+    def clients(self, channel: str) -> Iterable[IRCClient]:
+        """Return a list of all clients connected to a channel."""
+        return self._channels.get(channel, [])
 
     @property
     def channels(self) -> Iterable[str]:
